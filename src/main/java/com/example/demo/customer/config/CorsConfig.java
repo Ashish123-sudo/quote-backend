@@ -14,7 +14,10 @@ public class CorsConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                        .allowedOrigins("http://localhost:4200") // Angular default port
+                        .allowedOrigins(
+                                "http://localhost:4200", // local dev
+                                "https://699ded35d0660b0008149afe--sprightly-vacherin-2274ac.netlify.app" // Netlify frontend
+                        )
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true)
