@@ -10,8 +10,8 @@ public class CorsConfig {
 
     // List of allowed frontend URLs
     private static final String[] ALLOWED_ORIGINS = new String[]{
-            "http://localhost:4200", // local development
-            "https://699ded35d0660b0008149afe--sprightly-vacherin-2274ac.netlify.app" // Netlify production
+            "http://localhost:4200",
+            "https://sprightly-vacherin-2274ac.netlify.app"  // main domain, not preview URL
     };
 
     @Bean
