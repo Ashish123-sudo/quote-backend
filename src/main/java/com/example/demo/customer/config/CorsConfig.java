@@ -11,7 +11,7 @@ public class CorsConfig {
     // List of allowed frontend URLs
     private static final String[] ALLOWED_ORIGINS = new String[]{
             "http://localhost:4200",
-            "https://sprightly-vacherin-2274ac.netlify.app"  // main domain, not preview URL
+            "https://sprightly-vacherin-2274ac.netlify.app"
     };
 
     @Bean
@@ -20,7 +20,10 @@ public class CorsConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                        .allowedOrigins(ALLOWED_ORIGINS)
+                        .allowedOriginPatterns(
+                                "http://localhost:4200",
+                                "https://*.netlify.app"
+                        )
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true)
