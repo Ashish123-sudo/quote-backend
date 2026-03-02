@@ -22,7 +22,8 @@ public class CorsConfig {
                 registry.addMapping("/api/**")
                         .allowedOriginPatterns(
                                 "http://localhost:4200",
-                                "https://*.netlify.app"
+                                "https://*.netlify.app",
+                                "https://*.vercel.app"
                         )
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
