@@ -23,6 +23,9 @@ public class QuoteHeader {
     @Column(name = "quote_date")
     private LocalDate quoteDate;
 
+    @Column(name = "currency", length = 10)
+    private String currency = "INR";
+
     @Column(name = "total_quantity")
     private Integer totalQuantity = 0;
 
@@ -111,6 +114,14 @@ public class QuoteHeader {
     public void removeQuoteDetail(QuoteDetail detail) {
         quoteDetails.remove(detail);
         detail.setQuoteHeader(null);
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
     }
 
     @Override
