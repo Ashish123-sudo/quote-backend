@@ -1,4 +1,7 @@
 package com.example.demo.customer.entity;
+import com.example.demo.quote.entity.QuoteHeader;
+import java.util.ArrayList;
+import java.util.List;
 
 import jakarta.persistence.*;
 
@@ -37,6 +40,10 @@ public class Customer {
 
     @Column(name = "web_url", length = 255)
     private String webUrl;
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "customer_id")
+    private List<QuoteHeader> quotes = new ArrayList<>();
 
     // Default Constructor
     public Customer() {
