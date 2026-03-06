@@ -163,7 +163,8 @@ public class QuoteServiceImpl implements QuoteService {
 
         // Calculate item value
         if (quoteDetail.getItemQuantity() != null && quoteDetail.getItemUnitRate() != null) {
-            double itemValue = quoteDetail.getItemQuantity() * quoteDetail.getItemUnitRate();
+            double discount = quoteDetail.getItemDiscount() != null ? quoteDetail.getItemDiscount() : 0.0;
+            double itemValue = quoteDetail.getItemQuantity() * quoteDetail.getItemUnitRate() * (1 - discount / 100);
             quoteDetail.setItemValue(itemValue);
         } else {
             quoteDetail.setItemValue(0.0);
@@ -206,7 +207,10 @@ public class QuoteServiceImpl implements QuoteService {
         existingDetail.setItemDesc(quoteDetail.getItemDesc());
         existingDetail.setItemUnitRate(quoteDetail.getItemUnitRate());
         existingDetail.setItemQuantity(quoteDetail.getItemQuantity());
-        existingDetail.setItemValue(quoteDetail.getItemValue());
+        existingDetail.setItemDiscount(quoteDetail.getItemDiscount());
+        double discount = quoteDetail.getItemDiscount() != null ? quoteDetail.getItemDiscount() : 0.0;
+        double itemValue = quoteDetail.getItemQuantity() * quoteDetail.getItemUnitRate() * (1 - discount / 100);
+        existingDetail.setItemValue(itemValue);
 
         // Save updated detail
         QuoteDetail updatedDetail = quoteDetailRepository.save(existingDetail);
@@ -249,7 +253,12 @@ public class QuoteServiceImpl implements QuoteService {
                     .sum();
 
             double totalValue = quoteHeader.getQuoteDetails().stream()
-                    .mapToDouble(d -> d.getItemValue() != null ? d.getItemValue() : 0.0)
+                    .mapToDouble(d -> {
+                        double qty  = d.getItemQuantity() != null ? d.getItemQuantity() : 0;
+                        double rate = d.getItemUnitRate() != null ? d.getItemUnitRate() : 0.0;
+                        double disc = d.getItemDiscount() != null ? d.getItemDiscount() : 0.0;
+                        return qty * rate * (1 - disc / 100);
+                    })
                     .sum();
 
             quoteHeader.setTotalQuantity(totalQty);

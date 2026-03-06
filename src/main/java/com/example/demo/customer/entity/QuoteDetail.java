@@ -27,6 +27,9 @@ public class QuoteDetail {
     @Column(name = "item_value")
     private Double itemValue;
 
+    @Column(name = "item_discount")
+    private Double itemDiscount = 0.0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quote_id")
     @JsonIgnore
@@ -89,6 +92,10 @@ public class QuoteDetail {
     public void setItemQuantity(Integer itemQuantity) {
         this.itemQuantity = itemQuantity;
     }
+
+    public Double getItemDiscount() { return itemDiscount; }
+
+    public void setItemDiscount(Double itemDiscount) { this.itemDiscount = itemDiscount; }
 
     public Double getItemValue() {
         return itemValue;
