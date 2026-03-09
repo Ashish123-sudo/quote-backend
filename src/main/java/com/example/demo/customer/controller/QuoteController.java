@@ -7,13 +7,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
+import com.example.demo.quote.entity.QuoteTermsCondition;
 import java.util.List;
 import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/quotes")
-@CrossOrigin(origins = "https://699db1e4064fec9991497b90--sprightly-vacherin-2274ac.netlify.app")
+@CrossOrigin(origins = {
+        "https://699db1e4064fec9991497b90--sprightly-vacherin-2274ac.netlify.app",
+        "http://localhost:4200"
+})
 public class QuoteController {
 
     @Autowired
@@ -29,7 +32,17 @@ public class QuoteController {
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
+    @PutMapping("/{id}/terms")
+    public ResponseEntity<Void> updateQuoteTerms(@PathVariable Long id,
+                                                 @RequestBody List<QuoteTermsCondition> terms) {
+        try {
+            quoteService.updateQuoteTerms(id, terms);
+            return new ResponseEntity<>(HttpStatus.OK);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
     // GET quote by ID
     @GetMapping("/{id}")
     public ResponseEntity<QuoteHeader> getQuoteById(@PathVariable Long id) {

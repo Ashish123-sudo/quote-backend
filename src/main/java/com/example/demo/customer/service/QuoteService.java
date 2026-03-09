@@ -2,7 +2,7 @@ package com.example.demo.quote.service;
 
 import com.example.demo.quote.entity.QuoteDetail;
 import com.example.demo.quote.entity.QuoteHeader;
-
+import com.example.demo.quote.entity.QuoteTermsCondition;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,7 +16,7 @@ public interface QuoteService {
 
     // Get quote by reference
     Optional<QuoteHeader> getQuoteByRef(String quoteRef);
-
+    void updateQuoteTerms(Long quoteId, List<QuoteTermsCondition> terms);
     // Get quotes by customer
     List<QuoteHeader> getQuotesByCustomerId(Integer customerId);
 

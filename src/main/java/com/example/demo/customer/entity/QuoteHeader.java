@@ -35,6 +35,12 @@ public class QuoteHeader {
     @OneToMany(mappedBy = "quoteHeader", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<QuoteDetail> quoteDetails = new ArrayList<>();
 
+    @OneToMany(mappedBy = "quoteHeader", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<QuoteTermsCondition> quoteTermsConditions = new ArrayList<>();
+
+    @jakarta.persistence.Transient
+    @com.fasterxml.jackson.annotation.JsonProperty("incomingTerms")
+    private List<QuoteTermsCondition> incomingTerms;
     // Constructors
     public QuoteHeader() {
     }
@@ -56,6 +62,10 @@ public class QuoteHeader {
     public void setQuoteId(Long quoteId) {
         this.quoteId = quoteId;
     }
+
+
+    public List<QuoteTermsCondition> getIncomingTerms() { return incomingTerms; }
+    public void setIncomingTerms(List<QuoteTermsCondition> incomingTerms) { this.incomingTerms = incomingTerms; }
 
     public String getQuoteRef() {
         return quoteRef;
@@ -79,6 +89,13 @@ public class QuoteHeader {
 
     public void setQuoteDate(LocalDate quoteDate) {
         this.quoteDate = quoteDate;
+    }
+
+    public List<QuoteTermsCondition> getQuoteTermsConditions() { return quoteTermsConditions; }
+
+    // setter
+    public void setQuoteTermsConditions(List<QuoteTermsCondition> quoteTermsConditions) {
+        this.quoteTermsConditions = quoteTermsConditions;
     }
 
     public Integer getTotalQuantity() {
@@ -115,6 +132,7 @@ public class QuoteHeader {
         quoteDetails.remove(detail);
         detail.setQuoteHeader(null);
     }
+
 
     public String getCurrency() {
         return currency;

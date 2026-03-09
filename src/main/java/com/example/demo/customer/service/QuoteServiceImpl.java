@@ -9,7 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-
+import com.example.demo.quote.repository.QuoteTermsConditionRepository;
+import com.example.demo.quote.entity.QuoteTermsCondition;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,6 +23,9 @@ public class QuoteServiceImpl implements QuoteService {
 
     @Autowired
     private QuoteDetailRepository quoteDetailRepository;
+
+    @Autowired
+    private QuoteTermsConditionRepository quoteTermsConditionRepository;
 
     // =========================
     // GET METHODS
@@ -53,16 +57,41 @@ public class QuoteServiceImpl implements QuoteService {
 
     @Override
     public QuoteHeader createQuote(QuoteHeader quoteHeader) {
-
-        // ✅ Backend owns the reference
+        System.out.println("Incoming terms: " + quoteHeader.getIncomingTerms());
         quoteHeader.setQuoteDate(LocalDate.now());
         quoteHeader.setQuoteRef(generateNextQuoteRef());
 
         recalculateTotals(quoteHeader);
 
-        return quoteHeaderRepository.save(quoteHeader);
-    }
+        QuoteHeader savedQuote = quoteHeaderRepository.save(quoteHeader);
 
+        // Save terms conditions
+        if (quoteHeader.getIncomingTerms() != null) {
+            for (QuoteTermsCondition term : quoteHeader.getIncomingTerms()) {
+                term.setQuoteHeader(savedQuote);
+                term.setQuoteRef(savedQuote.getQuoteRef());
+            }
+            quoteTermsConditionRepository.saveAll(quoteHeader.getIncomingTerms());
+        }
+
+        return savedQuote;
+    }
+    @Override
+    public void updateQuoteTerms(Long quoteId, List<QuoteTermsCondition> terms) {
+        QuoteHeader header = quoteHeaderRepository.findById(quoteId)
+                .orElseThrow(() -> new RuntimeException("Quote not found with id: " + quoteId));
+
+        // Delete existing terms
+        quoteTermsConditionRepository.deleteByQuoteHeader_QuoteId(quoteId);
+
+        // Save new terms
+        for (int gi = 0; gi < terms.size(); gi++) {
+            QuoteTermsCondition term = terms.get(gi);
+            term.setQuoteHeader(header);
+            term.setQuoteRef(header.getQuoteRef());
+        }
+        quoteTermsConditionRepository.saveAll(terms);
+    }
     // =========================
     // UPDATE
     // =========================
