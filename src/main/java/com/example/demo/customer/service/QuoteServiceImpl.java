@@ -98,16 +98,26 @@ public class QuoteServiceImpl implements QuoteService {
 
     @Override
     public QuoteHeader updateQuote(Long id, QuoteHeader quoteHeader) {
+        QuoteHeader existing = quoteHeaderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Quote not found with id: " + id));
 
-        if (!quoteHeaderRepository.existsById(id)) {
-            throw new RuntimeException("Quote not found with id: " + id);
-        }
+        // Only update header fields, never touch details
+        existing.setCustomerId(quoteHeader.getCustomerId());
+        existing.setQuoteDate(quoteHeader.getQuoteDate());
+        existing.setCurrency(quoteHeader.getCurrency());
 
-        quoteHeader.setQuoteId(id);
+        // Recalculate totals from existing details in DB
+        List<QuoteDetail> allDetails = quoteDetailRepository.findByQuoteHeader_QuoteId(id);
+        int totalQty = allDetails.stream()
+                .mapToInt(d -> d.getItemQuantity() != null ? d.getItemQuantity() : 0)
+                .sum();
+        double totalValue = allDetails.stream()
+                .mapToDouble(d -> d.getItemValue() != null ? d.getItemValue() : 0.0)
+                .sum();
+        existing.setTotalQuantity(totalQty);
+        existing.setTotalValue(totalValue);
 
-        recalculateTotals(quoteHeader);
-
-        return quoteHeaderRepository.save(quoteHeader);
+        return quoteHeaderRepository.save(existing);
     }
 
     @Override

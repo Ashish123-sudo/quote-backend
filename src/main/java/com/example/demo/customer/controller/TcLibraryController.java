@@ -44,15 +44,29 @@ public class TcLibraryController {
 
     @GetMapping("/terms")
     public List<TcLibrary> getAllTerms() {
-        return tcLibraryRepository.findAll();
+        // Return sorted by sortOrder, falling back to termId for rows without a sortOrder yet
+        return tcLibraryRepository.findAllByOrderBySortOrderAscTermIdAsc();
     }
 
     @PostMapping("/terms")
     public ResponseEntity<TcLibrary> createTerm(@RequestBody TcLibrary term) {
-        if (term.getTcType() != null && term.getTcType().getTypeId() != null) {
+        if (term.getTcType() == null || term.getTcType().getTypeId() == null) {
+            TcType generalType = tcTypeRepository.findByTypeName("General")
+                    .orElseGet(() -> {
+                        TcType t = new TcType();
+                        t.setTypeName("General");
+                        return tcTypeRepository.save(t);
+                    });
+            term.setTcType(generalType);
+        } else {
             TcType type = tcTypeRepository.findById(term.getTcType().getTypeId())
                     .orElseThrow(() -> new RuntimeException("Type not found"));
             term.setTcType(type);
+        }
+        // If no sortOrder provided, put it at the end
+        if (term.getSortOrder() == null) {
+            int maxOrder = tcLibraryRepository.findAll().size();
+            term.setSortOrder(maxOrder + 1);
         }
         return new ResponseEntity<>(tcLibraryRepository.save(term), HttpStatus.CREATED);
     }
@@ -62,10 +76,15 @@ public class TcLibraryController {
         TcLibrary existing = tcLibraryRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Term not found"));
         existing.setTermText(term.getTermText());
+        if (term.getSortOrder() != null) {
+            existing.setSortOrder(term.getSortOrder());
+        }
         if (term.getTcType() != null && term.getTcType().getTypeId() != null) {
             TcType type = tcTypeRepository.findById(term.getTcType().getTypeId())
                     .orElseThrow(() -> new RuntimeException("Type not found"));
             existing.setTcType(type);
+        } else {
+            existing.setTcType(null);
         }
         return ResponseEntity.ok(tcLibraryRepository.save(existing));
     }
@@ -74,5 +93,24 @@ public class TcLibraryController {
     public ResponseEntity<Void> deleteTerm(@PathVariable Long id) {
         tcLibraryRepository.deleteById(id);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
+
+    // ── REORDER ────────────────────────────────────────
+
+    // DTO for reorder request
+    static class ReorderItem {
+        public Long termId;
+        public Integer sortOrder;
+    }
+
+    @PutMapping("/terms/reorder")
+    public ResponseEntity<Void> reorderTerms(@RequestBody List<ReorderItem> items) {
+        for (ReorderItem item : items) {
+            tcLibraryRepository.findById(item.termId).ifPresent(term -> {
+                term.setSortOrder(item.sortOrder);
+                tcLibraryRepository.save(term);
+            });
+        }
+        return ResponseEntity.ok().build();
     }
 }

@@ -15,8 +15,11 @@ public class TcLibrary {
     private String termText;
 
     @ManyToOne
-    @JoinColumn(name = "type_id")
+    @JoinColumn(name = "type_id", nullable = true)
     private TcType tcType;
+
+    @Column(name = "sort_order")
+    private Integer sortOrder;
 
     public TcLibrary() {}
 
@@ -26,4 +29,6 @@ public class TcLibrary {
     public void setTermText(String termText) { this.termText = termText; }
     public TcType getTcType() { return tcType; }
     public void setTcType(TcType tcType) { this.tcType = tcType; }
+    public Integer getSortOrder() { return sortOrder; }
+    public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
 }

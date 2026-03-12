@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface TcLibraryRepository extends JpaRepository<TcLibrary, Long> {
     List<TcLibrary> findByTcType_TypeId(Long typeId);
+    List<TcLibrary> findAllByOrderBySortOrderAscTermIdAsc();
 }
