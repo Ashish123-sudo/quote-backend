@@ -101,10 +101,17 @@ public class QuoteServiceImpl implements QuoteService {
         QuoteHeader existing = quoteHeaderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Quote not found with id: " + id));
 
-        // Only update header fields, never touch details
         existing.setCustomerId(quoteHeader.getCustomerId());
         existing.setQuoteDate(quoteHeader.getQuoteDate());
         existing.setCurrency(quoteHeader.getCurrency());
+
+        // Reset approval status if quote was approved or rejected
+        String currentStatus = existing.getApprovalStatus();
+        if ("APPROVED".equals(currentStatus) || "REJECTED".equals(currentStatus)) {
+            existing.setApprovalStatus("DRAFT");
+            existing.setApprovedBy(null);
+            existing.setRejectionReason(null);
+        }
 
         // Recalculate totals from existing details in DB
         List<QuoteDetail> allDetails = quoteDetailRepository.findByQuoteHeader_QuoteId(id);

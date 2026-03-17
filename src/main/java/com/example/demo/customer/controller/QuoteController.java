@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import com.example.demo.quote.entity.QuoteTermsCondition;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/quotes")
@@ -21,6 +22,9 @@ public class QuoteController {
 
     @Autowired
     private QuoteService quoteService;
+
+    @Autowired
+    private com.example.demo.quote.repository.QuoteHeaderRepository quoteHeaderRepository;
 
     // GET all quotes
     @GetMapping
@@ -79,6 +83,52 @@ public class QuoteController {
         } catch (Exception e) {
             e.printStackTrace();
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PutMapping("/{id}/submit")
+    public ResponseEntity<?> submitForApproval(@PathVariable Long id,
+                                               @RequestBody Map<String, String> payload) {
+        try {
+            QuoteHeader quote = quoteService.getQuoteById(id)
+                    .orElseThrow(() -> new RuntimeException("Quote not found"));
+            quote.setApprovalStatus("PENDING");
+            quote.setSubmittedBy(payload.get("submittedBy"));
+            quoteHeaderRepository.save(quote);
+            return ResponseEntity.ok(quote);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/approve")
+    public ResponseEntity<?> approveQuote(@PathVariable Long id,
+                                          @RequestBody Map<String, String> payload) {
+        try {
+            QuoteHeader quote = quoteService.getQuoteById(id)
+                    .orElseThrow(() -> new RuntimeException("Quote not found"));
+            quote.setApprovalStatus("APPROVED");
+            quote.setApprovedBy(payload.get("approvedBy"));
+            quoteHeaderRepository.save(quote);
+            return ResponseEntity.ok(quote);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/reject")
+    public ResponseEntity<?> rejectQuote(@PathVariable Long id,
+                                         @RequestBody Map<String, String> payload) {
+        try {
+            QuoteHeader quote = quoteService.getQuoteById(id)
+                    .orElseThrow(() -> new RuntimeException("Quote not found"));
+            quote.setApprovalStatus("REJECTED");
+            quote.setApprovedBy(payload.get("approvedBy"));
+            quote.setRejectionReason(payload.get("rejectionReason"));
+            quoteHeaderRepository.save(quote);
+            return ResponseEntity.ok(quote);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 

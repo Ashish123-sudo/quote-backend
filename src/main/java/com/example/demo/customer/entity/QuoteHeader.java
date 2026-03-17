@@ -26,6 +26,18 @@ public class QuoteHeader {
     @Column(name = "currency", length = 10)
     private String currency = "INR";
 
+    @Column(name = "approval_status", length = 20)
+    private String approvalStatus = "DRAFT";
+
+    @Column(name = "submitted_by", length = 100)
+    private String submittedBy;
+
+    @Column(name = "approved_by", length = 100)
+    private String approvedBy;
+
+    @Column(name = "rejection_reason", length = 500)
+    private String rejectionReason;
+
     @Column(name = "total_quantity")
     private Integer totalQuantity = 0;
 
@@ -132,6 +144,18 @@ public class QuoteHeader {
         quoteDetails.remove(detail);
         detail.setQuoteHeader(null);
     }
+
+    public String getApprovalStatus() { return approvalStatus; }
+    public void setApprovalStatus(String approvalStatus) { this.approvalStatus = approvalStatus; }
+
+    public String getSubmittedBy() { return submittedBy; }
+    public void setSubmittedBy(String submittedBy) { this.submittedBy = submittedBy; }
+
+    public String getApprovedBy() { return approvedBy; }
+    public void setApprovedBy(String approvedBy) { this.approvedBy = approvedBy; }
+
+    public String getRejectionReason() { return rejectionReason; }
+    public void setRejectionReason(String rejectionReason) { this.rejectionReason = rejectionReason; }
 
 
     public String getCurrency() {
