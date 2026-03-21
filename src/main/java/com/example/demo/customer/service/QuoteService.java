@@ -5,38 +5,43 @@ import com.example.demo.quote.entity.QuoteHeader;
 import com.example.demo.quote.entity.QuoteTermsCondition;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface QuoteService {
 
-    // Get all quotes
-    List<QuoteHeader> getAllQuotes();
+    // Get all quotes for an organization
+    List<QuoteHeader> getAllQuotes(UUID orgId);
 
-    // Get quote by ID (with details)
-    Optional<QuoteHeader> getQuoteById(Long id);
+    // Get quote by ID with org validation
+    Optional<QuoteHeader> getQuoteById(UUID quoteId, UUID orgId);
 
     // Get quote by reference
-    Optional<QuoteHeader> getQuoteByRef(String quoteRef);
-    void updateQuoteTerms(Long quoteId, List<QuoteTermsCondition> terms);
+    Optional<QuoteHeader> getQuoteByRef(String quoteRef, UUID orgId);
+
+    // Update quote terms
+    void updateQuoteTerms(UUID quoteId, List<QuoteTermsCondition> terms, UUID orgId, UUID userId);
+
     // Get quotes by customer
-    List<QuoteHeader> getQuotesByCustomerId(Integer customerId);
+    List<QuoteHeader> getQuotesByCustomerId(UUID customerId, UUID orgId);
 
     // Create new quote
-    QuoteHeader createQuote(QuoteHeader quoteHeader);
+    QuoteHeader createQuote(QuoteHeader quoteHeader, UUID orgId, UUID userId);
 
     // Update quote
-    QuoteHeader updateQuote(Long id, QuoteHeader quoteHeader);
+    QuoteHeader updateQuote(UUID quoteId, QuoteHeader quoteHeader, UUID orgId, UUID userId);
 
     // Delete full quote
-    void deleteQuote(Long id);
+    void deleteQuote(UUID quoteId, UUID orgId);
 
     // Add single quote detail
-    QuoteDetail addQuoteDetail(QuoteDetail quoteDetail);
+    QuoteDetail addQuoteDetail(QuoteDetail quoteDetail, UUID orgId, UUID userId);
 
     // Update single quote detail
-    QuoteDetail updateQuoteDetail(Long slNo, QuoteDetail quoteDetail);
+    QuoteDetail updateQuoteDetail(UUID slNo, QuoteDetail quoteDetail, UUID orgId, UUID userId);
 
     // Delete single quote detail
-    void deleteQuoteDetail(Long slNo);
+    void deleteQuoteDetail(UUID slNo, UUID orgId);
 
-    String generateNextQuoteRef();
+    // Generate next quote reference
+    String generateNextQuoteRef(UUID orgId);
 }

@@ -1,5 +1,6 @@
 package com.example.demo.customer.controller;
 
+import com.example.demo.config.SecurityHelper;
 import com.example.demo.customer.entity.TcLibrary;
 import com.example.demo.customer.entity.TcType;
 import com.example.demo.customer.repository.TcLibraryRepository;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/tc")
@@ -19,98 +21,207 @@ import java.util.List;
 })
 public class TcLibraryController {
 
-    @Autowired private TcLibraryRepository tcLibraryRepository;
-    @Autowired private TcTypeRepository tcTypeRepository;
+    @Autowired
+    private TcLibraryRepository tcLibraryRepository;
+
+    @Autowired
+    private TcTypeRepository tcTypeRepository;
+
+    @Autowired
+    private SecurityHelper securityHelper;
 
     // ── TYPES ──────────────────────────────────────────
 
     @GetMapping("/types")
-    public List<TcType> getAllTypes() {
-        return tcTypeRepository.findAll();
+    public ResponseEntity<List<TcType>> getAllTypes() {
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+            List<TcType> types = tcTypeRepository.findByOrgId(orgId);
+            return ResponseEntity.ok(types);
+        } catch (Exception e) {
+            System.err.println("❌ Error fetching types: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @PostMapping("/types")
     public ResponseEntity<TcType> createType(@RequestBody TcType tcType) {
-        return new ResponseEntity<>(tcTypeRepository.save(tcType), HttpStatus.CREATED);
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+            UUID userId = securityHelper.getCurrentUserId();
+
+            tcType.setOrgId(orgId);
+            tcType.setCreatedBy(userId);
+            tcType.setUpdatedBy(userId);
+
+            TcType saved = tcTypeRepository.save(tcType);
+            return new ResponseEntity<>(saved, HttpStatus.CREATED);
+        } catch (Exception e) {
+            System.err.println("❌ Error creating type: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @DeleteMapping("/types/{id}")
-    public ResponseEntity<Void> deleteType(@PathVariable Long id) {
-        tcTypeRepository.deleteById(id);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public ResponseEntity<Void> deleteType(@PathVariable UUID id) {
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+
+            TcType type = tcTypeRepository.findByTypeIdAndOrgId(id, orgId)
+                    .orElseThrow(() -> new RuntimeException("Type not found"));
+
+            tcTypeRepository.delete(type);
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        } catch (RuntimeException e) {
+            System.err.println("❌ Error deleting type: " + e.getMessage());
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            System.err.println("❌ Error deleting type: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     // ── TERMS ──────────────────────────────────────────
 
     @GetMapping("/terms")
-    public List<TcLibrary> getAllTerms() {
-        // Return sorted by sortOrder, falling back to termId for rows without a sortOrder yet
-        return tcLibraryRepository.findAllByOrderBySortOrderAscTermIdAsc();
+    public ResponseEntity<List<TcLibrary>> getAllTerms() {
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+            // Return sorted by sortOrder
+            List<TcLibrary> terms = tcLibraryRepository.findByOrgIdOrderBySortOrderAsc(orgId);
+            return ResponseEntity.ok(terms);
+        } catch (Exception e) {
+            System.err.println("❌ Error fetching terms: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @PostMapping("/terms")
     public ResponseEntity<TcLibrary> createTerm(@RequestBody TcLibrary term) {
-        if (term.getTcType() == null || term.getTcType().getTypeId() == null) {
-            TcType generalType = tcTypeRepository.findByTypeName("General")
-                    .orElseGet(() -> {
-                        TcType t = new TcType();
-                        t.setTypeName("General");
-                        return tcTypeRepository.save(t);
-                    });
-            term.setTcType(generalType);
-        } else {
-            TcType type = tcTypeRepository.findById(term.getTcType().getTypeId())
-                    .orElseThrow(() -> new RuntimeException("Type not found"));
-            term.setTcType(type);
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+            UUID userId = securityHelper.getCurrentUserId();
+
+            term.setOrgId(orgId);
+            term.setCreatedBy(userId);
+            term.setUpdatedBy(userId);
+
+            // Handle TcType - create or link
+            if (term.getTcType() == null || term.getTcType().getTypeId() == null) {
+                // Create or get "General" type
+                TcType generalType = tcTypeRepository.findByTypeNameAndOrgId("General", orgId)
+                        .orElseGet(() -> {
+                            TcType t = new TcType();
+                            t.setTypeName("General");
+                            t.setOrgId(orgId);
+                            t.setCreatedBy(userId);
+                            t.setUpdatedBy(userId);
+                            return tcTypeRepository.save(t);
+                        });
+                term.setTcType(generalType);
+            } else {
+                TcType type = tcTypeRepository.findByTypeIdAndOrgId(term.getTcType().getTypeId(), orgId)
+                        .orElseThrow(() -> new RuntimeException("Type not found"));
+                term.setTcType(type);
+            }
+
+            // If no sortOrder provided, put it at the end
+            if (term.getSortOrder() == null) {
+                int maxOrder = (int) tcLibraryRepository.countByOrgId(orgId);
+                term.setSortOrder(maxOrder + 1);
+            }
+
+            TcLibrary saved = tcLibraryRepository.save(term);
+            return new ResponseEntity<>(saved, HttpStatus.CREATED);
+        } catch (Exception e) {
+            System.err.println("❌ Error creating term: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-        // If no sortOrder provided, put it at the end
-        if (term.getSortOrder() == null) {
-            int maxOrder = tcLibraryRepository.findAll().size();
-            term.setSortOrder(maxOrder + 1);
-        }
-        return new ResponseEntity<>(tcLibraryRepository.save(term), HttpStatus.CREATED);
     }
 
     @PutMapping("/terms/{id}")
-    public ResponseEntity<TcLibrary> updateTerm(@PathVariable Long id, @RequestBody TcLibrary term) {
-        TcLibrary existing = tcLibraryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Term not found"));
-        existing.setTermText(term.getTermText());
-        if (term.getSortOrder() != null) {
-            existing.setSortOrder(term.getSortOrder());
+    public ResponseEntity<TcLibrary> updateTerm(@PathVariable UUID id, @RequestBody TcLibrary term) {
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+            UUID userId = securityHelper.getCurrentUserId();
+
+            TcLibrary existing = tcLibraryRepository.findByTermIdAndOrgId(id, orgId)
+                    .orElseThrow(() -> new RuntimeException("Term not found"));
+
+            existing.setTermText(term.getTermText());
+            existing.setUpdatedBy(userId);
+
+            if (term.getSortOrder() != null) {
+                existing.setSortOrder(term.getSortOrder());
+            }
+
+            if (term.getTcType() != null && term.getTcType().getTypeId() != null) {
+                TcType type = tcTypeRepository.findByTypeIdAndOrgId(term.getTcType().getTypeId(), orgId)
+                        .orElseThrow(() -> new RuntimeException("Type not found"));
+                existing.setTcType(type);
+            } else {
+                existing.setTcType(null);
+            }
+
+            TcLibrary updated = tcLibraryRepository.save(existing);
+            return ResponseEntity.ok(updated);
+        } catch (RuntimeException e) {
+            System.err.println("❌ Error updating term: " + e.getMessage());
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            System.err.println("❌ Error updating term: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-        if (term.getTcType() != null && term.getTcType().getTypeId() != null) {
-            TcType type = tcTypeRepository.findById(term.getTcType().getTypeId())
-                    .orElseThrow(() -> new RuntimeException("Type not found"));
-            existing.setTcType(type);
-        } else {
-            existing.setTcType(null);
-        }
-        return ResponseEntity.ok(tcLibraryRepository.save(existing));
     }
 
     @DeleteMapping("/terms/{id}")
-    public ResponseEntity<Void> deleteTerm(@PathVariable Long id) {
-        tcLibraryRepository.deleteById(id);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public ResponseEntity<Void> deleteTerm(@PathVariable UUID id) {
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+
+            TcLibrary term = tcLibraryRepository.findByTermIdAndOrgId(id, orgId)
+                    .orElseThrow(() -> new RuntimeException("Term not found"));
+
+            tcLibraryRepository.delete(term);
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        } catch (RuntimeException e) {
+            System.err.println("❌ Error deleting term: " + e.getMessage());
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            System.err.println("❌ Error deleting term: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     // ── REORDER ────────────────────────────────────────
 
     // DTO for reorder request
     static class ReorderItem {
-        public Long termId;
+        public String termId;  // Changed to String to accept UUID
         public Integer sortOrder;
     }
 
     @PutMapping("/terms/reorder")
     public ResponseEntity<Void> reorderTerms(@RequestBody List<ReorderItem> items) {
-        for (ReorderItem item : items) {
-            tcLibraryRepository.findById(item.termId).ifPresent(term -> {
-                term.setSortOrder(item.sortOrder);
-                tcLibraryRepository.save(term);
-            });
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+            UUID userId = securityHelper.getCurrentUserId();
+
+            for (ReorderItem item : items) {
+                UUID termId = UUID.fromString(item.termId);
+                tcLibraryRepository.findByTermIdAndOrgId(termId, orgId).ifPresent(term -> {
+                    term.setSortOrder(item.sortOrder);
+                    term.setUpdatedBy(userId);
+                    tcLibraryRepository.save(term);
+                });
+            }
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            System.err.println("❌ Error reordering terms: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-        return ResponseEntity.ok().build();
     }
 }

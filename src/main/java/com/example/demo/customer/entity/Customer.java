@@ -1,18 +1,26 @@
 package com.example.demo.customer.entity;
+
 import com.example.demo.quote.entity.QuoteHeader;
+import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-
-import jakarta.persistence.*;
+import java.util.UUID;
 
 @Entity
-@Table(name = "customer_details")  // Updated to match your actual table name
+@Table(name = "customer_details")
 public class Customer {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "customer_id")
-    private Integer customerId;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "customer_id", columnDefinition = "UUID")
+    private UUID customerId;
+
+    @Column(name = "org_id", nullable = false, columnDefinition = "UUID")
+    private UUID orgId;
 
     @Column(name = "name", nullable = false, length = 255)
     private String name;
@@ -41,18 +49,38 @@ public class Customer {
     @Column(name = "web_url", length = 255)
     private String webUrl;
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "customer_id")
+    @Column(name = "is_active")
+    private Boolean isActive = true;
+
+    // Audit fields
+    @Column(name = "created_by", columnDefinition = "UUID")
+    private UUID createdBy;
+
+    @Column(name = "created_datetime", updatable = false)
+    @CreationTimestamp
+    private LocalDateTime createdDatetime;
+
+    @Column(name = "updated_by", columnDefinition = "UUID")
+    private UUID updatedBy;
+
+    @Column(name = "updated_datetime")
+    @UpdateTimestamp
+    private LocalDateTime updatedDatetime;
+    @JsonIgnore
+    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<QuoteHeader> quotes = new ArrayList<>();
+
+
 
     // Default Constructor
     public Customer() {
     }
 
-    // Constructor with all fields
-    public Customer(String name, String address1, String address2, String city,
+    // Constructor with essential fields
+    public Customer(UUID orgId, String name, String address1, String address2, String city,
                     String stateProvince, String country, String contactNumber,
                     String emailId, String webUrl) {
+        this.orgId = orgId;
         this.name = name;
         this.address1 = address1;
         this.address2 = address2;
@@ -65,12 +93,20 @@ public class Customer {
     }
 
     // Getters and Setters
-    public Integer getCustomerId() {
+    public UUID getCustomerId() {
         return customerId;
     }
 
-    public void setCustomerId(Integer customerId) {
+    public void setCustomerId(UUID customerId) {
         this.customerId = customerId;
+    }
+
+    public UUID getOrgId() {
+        return orgId;
+    }
+
+    public void setOrgId(UUID orgId) {
+        this.orgId = orgId;
     }
 
     public String getName() {
@@ -145,10 +181,59 @@ public class Customer {
         this.webUrl = webUrl;
     }
 
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public UUID getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(UUID createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public LocalDateTime getCreatedDatetime() {
+        return createdDatetime;
+    }
+
+    public void setCreatedDatetime(LocalDateTime createdDatetime) {
+        this.createdDatetime = createdDatetime;
+    }
+
+    public UUID getUpdatedBy() {
+        return updatedBy;
+    }
+
+    public void setUpdatedBy(UUID updatedBy) {
+        this.updatedBy = updatedBy;
+    }
+
+    public LocalDateTime getUpdatedDatetime() {
+        return updatedDatetime;
+    }
+
+    public void setUpdatedDatetime(LocalDateTime updatedDatetime) {
+        this.updatedDatetime = updatedDatetime;
+    }
+
+    public List<QuoteHeader> getQuotes() {
+        return quotes;
+    }
+
+    public void setQuotes(List<QuoteHeader> quotes) {
+        this.quotes = quotes;
+    }
+
     @Override
     public String toString() {
         return "Customer{" +
                 "customerId=" + customerId +
+                ", orgId=" + orgId +
                 ", name='" + name + '\'' +
                 ", address1='" + address1 + '\'' +
                 ", address2='" + address2 + '\'' +
@@ -158,6 +243,7 @@ public class Customer {
                 ", contactNumber='" + contactNumber + '\'' +
                 ", emailId='" + emailId + '\'' +
                 ", webUrl='" + webUrl + '\'' +
+                ", isActive=" + isActive +
                 '}';
     }
 }

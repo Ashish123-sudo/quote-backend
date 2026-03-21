@@ -1,18 +1,24 @@
 package com.example.demo.quote.service;
 
+import com.example.demo.customer.entity.Customer;
+import com.example.demo.customer.repository.CustomerRepository;
 import com.example.demo.quote.entity.QuoteDetail;
 import com.example.demo.quote.entity.QuoteHeader;
+import com.example.demo.quote.entity.QuoteTermsCondition;
 import com.example.demo.quote.repository.QuoteDetailRepository;
 import com.example.demo.quote.repository.QuoteHeaderRepository;
+import com.example.demo.quote.repository.QuoteTermsConditionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import com.example.demo.quote.repository.QuoteTermsConditionRepository;
-import com.example.demo.quote.entity.QuoteTermsCondition;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @Transactional
@@ -27,28 +33,31 @@ public class QuoteServiceImpl implements QuoteService {
     @Autowired
     private QuoteTermsConditionRepository quoteTermsConditionRepository;
 
+    @Autowired
+    private CustomerRepository customerRepository;
+
     // =========================
     // GET METHODS
     // =========================
 
     @Override
-    public List<QuoteHeader> getAllQuotes() {
-        return quoteHeaderRepository.findAll();
+    public List<QuoteHeader> getAllQuotes(UUID orgId) {
+        return quoteHeaderRepository.findByOrgId(orgId);
     }
 
     @Override
-    public Optional<QuoteHeader> getQuoteById(Long id) {
-        return quoteHeaderRepository.findById(id);
+    public Optional<QuoteHeader> getQuoteById(UUID quoteId, UUID orgId) {
+        return quoteHeaderRepository.findByQuoteIdAndOrgId(quoteId, orgId);
     }
 
     @Override
-    public Optional<QuoteHeader> getQuoteByRef(String quoteRef) {
-        return quoteHeaderRepository.findByQuoteRef(quoteRef);
+    public Optional<QuoteHeader> getQuoteByRef(String quoteRef, UUID orgId) {
+        return quoteHeaderRepository.findByQuoteRefAndOrgId(quoteRef, orgId);
     }
 
     @Override
-    public List<QuoteHeader> getQuotesByCustomerId(Integer customerId) {
-        return quoteHeaderRepository.findByCustomerId(customerId);
+    public List<QuoteHeader> getQuotesByCustomerId(UUID customerId, UUID orgId) {
+        return quoteHeaderRepository.findByCustomer_CustomerIdAndOrgId(customerId, orgId);
     }
 
     // =========================
@@ -56,54 +65,86 @@ public class QuoteServiceImpl implements QuoteService {
     // =========================
 
     @Override
-    public QuoteHeader createQuote(QuoteHeader quoteHeader) {
+    public QuoteHeader createQuote(QuoteHeader quoteHeader, UUID orgId, UUID userId) {
         System.out.println("Incoming terms: " + quoteHeader.getIncomingTerms());
-        quoteHeader.setQuoteDate(LocalDate.now());
-        quoteHeader.setQuoteRef(generateNextQuoteRef());
 
+        // Set organization and audit fields
+        quoteHeader.setOrgId(orgId);
+        quoteHeader.setCreatedBy(userId);
+        quoteHeader.setUpdatedBy(userId);
+        quoteHeader.setQuoteDate(LocalDate.now());
+        quoteHeader.setQuoteRef(generateNextQuoteRef(orgId));
+
+        // Verify customer belongs to same organization
+        if (quoteHeader.getCustomer() != null && quoteHeader.getCustomer().getCustomerId() != null) {
+            Customer customer = customerRepository.findByCustomerIdAndOrgId(
+                    quoteHeader.getCustomer().getCustomerId(), orgId
+            ).orElseThrow(() -> new RuntimeException("Customer not found or belongs to different organization"));
+            quoteHeader.setCustomer(customer);
+        }
+
+        // Recalculate totals
         recalculateTotals(quoteHeader);
 
+        // Save the quote
         QuoteHeader savedQuote = quoteHeaderRepository.save(quoteHeader);
 
         // Save terms conditions
         if (quoteHeader.getIncomingTerms() != null) {
             for (QuoteTermsCondition term : quoteHeader.getIncomingTerms()) {
+                term.setOrgId(orgId);
                 term.setQuoteHeader(savedQuote);
                 term.setQuoteRef(savedQuote.getQuoteRef());
+                term.setCreatedBy(userId);
+                term.setUpdatedBy(userId);
             }
             quoteTermsConditionRepository.saveAll(quoteHeader.getIncomingTerms());
         }
 
         return savedQuote;
     }
+
     @Override
-    public void updateQuoteTerms(Long quoteId, List<QuoteTermsCondition> terms) {
-        QuoteHeader header = quoteHeaderRepository.findById(quoteId)
+    public void updateQuoteTerms(UUID quoteId, List<QuoteTermsCondition> terms, UUID orgId, UUID userId) {
+        QuoteHeader header = quoteHeaderRepository.findByQuoteIdAndOrgId(quoteId, orgId)
                 .orElseThrow(() -> new RuntimeException("Quote not found with id: " + quoteId));
 
         // Delete existing terms
-        quoteTermsConditionRepository.deleteByQuoteHeader_QuoteId(quoteId);
+        List<QuoteTermsCondition> existingTerms = quoteTermsConditionRepository
+                .findByQuoteHeader_QuoteIdAndOrgId(quoteId, orgId);
+        quoteTermsConditionRepository.deleteAll(existingTerms);
 
         // Save new terms
-        for (int gi = 0; gi < terms.size(); gi++) {
-            QuoteTermsCondition term = terms.get(gi);
+        for (QuoteTermsCondition term : terms) {
+            term.setOrgId(orgId);
             term.setQuoteHeader(header);
             term.setQuoteRef(header.getQuoteRef());
+            term.setCreatedBy(userId);
+            term.setUpdatedBy(userId);
         }
         quoteTermsConditionRepository.saveAll(terms);
     }
+
     // =========================
     // UPDATE
     // =========================
 
     @Override
-    public QuoteHeader updateQuote(Long id, QuoteHeader quoteHeader) {
-        QuoteHeader existing = quoteHeaderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Quote not found with id: " + id));
+    public QuoteHeader updateQuote(UUID quoteId, QuoteHeader quoteHeader, UUID orgId, UUID userId) {
+        QuoteHeader existing = quoteHeaderRepository.findByQuoteIdAndOrgId(quoteId, orgId)
+                .orElseThrow(() -> new RuntimeException("Quote not found with id: " + quoteId));
 
-        existing.setCustomerId(quoteHeader.getCustomerId());
+        // Update basic fields
+        if (quoteHeader.getCustomer() != null && quoteHeader.getCustomer().getCustomerId() != null) {
+            Customer customer = customerRepository.findByCustomerIdAndOrgId(
+                    quoteHeader.getCustomer().getCustomerId(), orgId
+            ).orElseThrow(() -> new RuntimeException("Customer not found or belongs to different organization"));
+            existing.setCustomer(customer);
+        }
+
         existing.setQuoteDate(quoteHeader.getQuoteDate());
         existing.setCurrency(quoteHeader.getCurrency());
+        existing.setUpdatedBy(userId);
 
         // Reset approval status if quote was approved or rejected
         String currentStatus = existing.getApprovalStatus();
@@ -114,13 +155,17 @@ public class QuoteServiceImpl implements QuoteService {
         }
 
         // Recalculate totals from existing details in DB
-        List<QuoteDetail> allDetails = quoteDetailRepository.findByQuoteHeader_QuoteId(id);
+        List<QuoteDetail> allDetails = quoteDetailRepository.findByQuoteHeader_QuoteIdAndOrgId(quoteId, orgId);
+
         int totalQty = allDetails.stream()
                 .mapToInt(d -> d.getItemQuantity() != null ? d.getItemQuantity() : 0)
                 .sum();
-        double totalValue = allDetails.stream()
-                .mapToDouble(d -> d.getItemValue() != null ? d.getItemValue() : 0.0)
-                .sum();
+
+        BigDecimal totalValue = allDetails.stream()
+                .map(d -> d.getItemValue() != null ? d.getItemValue() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
         existing.setTotalQuantity(totalQty);
         existing.setTotalValue(totalValue);
 
@@ -128,16 +173,11 @@ public class QuoteServiceImpl implements QuoteService {
     }
 
     @Override
-    public String generateNextQuoteRef() {
-
+    public String generateNextQuoteRef(UUID orgId) {
         LocalDate today = LocalDate.now();
-
-        long countToday = quoteHeaderRepository.countByQuoteDate(today);
-
+        long countToday = quoteHeaderRepository.countByQuoteDateAndOrgId(today, orgId);
         long nextSerial = countToday + 1;
-
         String datePart = today.format(DateTimeFormatter.ofPattern("ddMMyy"));
-
         return String.format("Q-%s-%03d", datePart, nextSerial);
     }
 
@@ -146,13 +186,11 @@ public class QuoteServiceImpl implements QuoteService {
     // =========================
 
     @Override
-    public void deleteQuote(Long id) {
+    public void deleteQuote(UUID quoteId, UUID orgId) {
+        QuoteHeader quote = quoteHeaderRepository.findByQuoteIdAndOrgId(quoteId, orgId)
+                .orElseThrow(() -> new RuntimeException("Quote not found with id: " + quoteId));
 
-        if (!quoteHeaderRepository.existsById(id)) {
-            throw new RuntimeException("Quote not found with id: " + id);
-        }
-
-        quoteHeaderRepository.deleteById(id);
+        quoteHeaderRepository.delete(quote);
     }
 
     // =========================
@@ -160,35 +198,17 @@ public class QuoteServiceImpl implements QuoteService {
     // =========================
 
     @Override
-    public void deleteQuoteDetail(Long slNo) {
-
-        QuoteDetail detail = quoteDetailRepository.findById(slNo)
+    public void deleteQuoteDetail(UUID slNo, UUID orgId) {
+        QuoteDetail detail = quoteDetailRepository.findBySlNoAndOrgId(slNo, orgId)
                 .orElseThrow(() -> new RuntimeException("Quote detail not found"));
 
-        Long headerId = detail.getQuoteHeader().getQuoteId();
+        UUID headerId = detail.getQuoteHeader().getQuoteId();
 
         // Delete detail
-        quoteDetailRepository.deleteById(slNo);
+        quoteDetailRepository.delete(detail);
 
         // Recalculate totals
-        QuoteHeader header = quoteHeaderRepository.findById(headerId)
-                .orElseThrow(() -> new RuntimeException("Parent quote not found"));
-
-        List<QuoteDetail> remainingDetails =
-                quoteDetailRepository.findByQuoteHeader_QuoteId(headerId);
-
-        int totalQty = remainingDetails.stream()
-                .mapToInt(d -> d.getItemQuantity() != null ? d.getItemQuantity() : 0)
-                .sum();
-
-        double totalValue = remainingDetails.stream()
-                .mapToDouble(d -> d.getItemValue() != null ? d.getItemValue() : 0.0)
-                .sum();
-
-        header.setTotalQuantity(totalQty);
-        header.setTotalValue(totalValue);
-
-        quoteHeaderRepository.save(header);
+        recalculateHeaderTotals(headerId, orgId, null);
     }
 
     // =========================
@@ -196,44 +216,44 @@ public class QuoteServiceImpl implements QuoteService {
     // =========================
 
     @Override
-    public QuoteDetail addQuoteDetail(QuoteDetail quoteDetail) {
-
+    public QuoteDetail addQuoteDetail(QuoteDetail quoteDetail, UUID orgId, UUID userId) {
         // Get the quote header
-        Long quoteId = quoteDetail.getQuoteId();
-        QuoteHeader header = quoteHeaderRepository.findById(quoteId)
+        UUID quoteId = quoteDetail.getQuoteId();
+        QuoteHeader header = quoteHeaderRepository.findByQuoteIdAndOrgId(quoteId, orgId)
                 .orElseThrow(() -> new RuntimeException("Quote not found with id: " + quoteId));
 
-        // Set the relationship
+        // Set organization and audit fields
+        quoteDetail.setOrgId(orgId);
         quoteDetail.setQuoteHeader(header);
         quoteDetail.setQuoteRef(header.getQuoteRef());
+        quoteDetail.setCreatedBy(userId);
+        quoteDetail.setUpdatedBy(userId);
 
-        // Calculate item value
+        // Calculate item value using BigDecimal
         if (quoteDetail.getItemQuantity() != null && quoteDetail.getItemUnitRate() != null) {
-            double discount = quoteDetail.getItemDiscount() != null ? quoteDetail.getItemDiscount() : 0.0;
-            double itemValue = quoteDetail.getItemQuantity() * quoteDetail.getItemUnitRate() * (1 - discount / 100);
+            BigDecimal quantity = new BigDecimal(quoteDetail.getItemQuantity());
+            BigDecimal rate = quoteDetail.getItemUnitRate();
+            BigDecimal discount = quoteDetail.getItemDiscount() != null ?
+                    quoteDetail.getItemDiscount() : BigDecimal.ZERO;
+
+            // Calculate: quantity * rate * (1 - discount/100)
+            BigDecimal discountMultiplier = BigDecimal.ONE.subtract(
+                    discount.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
+            );
+
+            BigDecimal itemValue = quantity.multiply(rate).multiply(discountMultiplier)
+                    .setScale(2, RoundingMode.HALF_UP);
+
             quoteDetail.setItemValue(itemValue);
         } else {
-            quoteDetail.setItemValue(0.0);
+            quoteDetail.setItemValue(BigDecimal.ZERO);
         }
 
         // Save the detail
         QuoteDetail savedDetail = quoteDetailRepository.save(quoteDetail);
 
         // Recalculate header totals
-        List<QuoteDetail> allDetails = quoteDetailRepository.findByQuoteHeader_QuoteId(quoteId);
-
-        int totalQty = allDetails.stream()
-                .mapToInt(d -> d.getItemQuantity() != null ? d.getItemQuantity() : 0)
-                .sum();
-
-        double totalValue = allDetails.stream()
-                .mapToDouble(d -> d.getItemValue() != null ? d.getItemValue() : 0.0)
-                .sum();
-
-        header.setTotalQuantity(totalQty);
-        header.setTotalValue(totalValue);
-
-        quoteHeaderRepository.save(header);
+        recalculateHeaderTotals(quoteId, orgId, userId);
 
         return savedDetail;
     }
@@ -243,10 +263,9 @@ public class QuoteServiceImpl implements QuoteService {
     // =========================
 
     @Override
-    public QuoteDetail updateQuoteDetail(Long slNo, QuoteDetail quoteDetail) {
-
+    public QuoteDetail updateQuoteDetail(UUID slNo, QuoteDetail quoteDetail, UUID orgId, UUID userId) {
         // Find existing detail
-        QuoteDetail existingDetail = quoteDetailRepository.findById(slNo)
+        QuoteDetail existingDetail = quoteDetailRepository.findBySlNoAndOrgId(slNo, orgId)
                 .orElseThrow(() -> new RuntimeException("Quote detail not found with slNo: " + slNo));
 
         // Update fields
@@ -254,70 +273,107 @@ public class QuoteServiceImpl implements QuoteService {
         existingDetail.setItemUnitRate(quoteDetail.getItemUnitRate());
         existingDetail.setItemQuantity(quoteDetail.getItemQuantity());
         existingDetail.setItemDiscount(quoteDetail.getItemDiscount());
-        double discount = quoteDetail.getItemDiscount() != null ? quoteDetail.getItemDiscount() : 0.0;
-        double itemValue = quoteDetail.getItemQuantity() * quoteDetail.getItemUnitRate() * (1 - discount / 100);
-        existingDetail.setItemValue(itemValue);
+        existingDetail.setUpdatedBy(userId);
+
+        // Recalculate item value using BigDecimal
+        if (quoteDetail.getItemQuantity() != null && quoteDetail.getItemUnitRate() != null) {
+            BigDecimal quantity = new BigDecimal(quoteDetail.getItemQuantity());
+            BigDecimal rate = quoteDetail.getItemUnitRate();
+            BigDecimal discount = quoteDetail.getItemDiscount() != null ?
+                    quoteDetail.getItemDiscount() : BigDecimal.ZERO;
+
+            BigDecimal discountMultiplier = BigDecimal.ONE.subtract(
+                    discount.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
+            );
+
+            BigDecimal itemValue = quantity.multiply(rate).multiply(discountMultiplier)
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            existingDetail.setItemValue(itemValue);
+        } else {
+            existingDetail.setItemValue(BigDecimal.ZERO);
+        }
 
         // Save updated detail
         QuoteDetail updatedDetail = quoteDetailRepository.save(existingDetail);
 
         // Recalculate header totals
-        Long headerId = existingDetail.getQuoteHeader().getQuoteId();
-        QuoteHeader header = quoteHeaderRepository.findById(headerId)
-                .orElseThrow(() -> new RuntimeException("Parent quote not found"));
-
-        List<QuoteDetail> allDetails =
-                quoteDetailRepository.findByQuoteHeader_QuoteId(headerId);
-
-        int totalQty = allDetails.stream()
-                .mapToInt(d -> d.getItemQuantity() != null ? d.getItemQuantity() : 0)
-                .sum();
-
-        double totalValue = allDetails.stream()
-                .mapToDouble(d -> d.getItemValue() != null ? d.getItemValue() : 0.0)
-                .sum();
-
-        header.setTotalQuantity(totalQty);
-        header.setTotalValue(totalValue);
-
-        quoteHeaderRepository.save(header);
+        UUID headerId = existingDetail.getQuoteHeader().getQuoteId();
+        recalculateHeaderTotals(headerId, orgId, userId);
 
         return updatedDetail;
     }
 
     // =========================
-    // PRIVATE HELPER
+    // PRIVATE HELPERS
     // =========================
 
     private void recalculateTotals(QuoteHeader quoteHeader) {
-
-        if (quoteHeader.getQuoteDetails() != null &&
-                !quoteHeader.getQuoteDetails().isEmpty()) {
+        if (quoteHeader.getQuoteDetails() != null && !quoteHeader.getQuoteDetails().isEmpty()) {
 
             int totalQty = quoteHeader.getQuoteDetails().stream()
                     .mapToInt(d -> d.getItemQuantity() != null ? d.getItemQuantity() : 0)
                     .sum();
 
-            double totalValue = quoteHeader.getQuoteDetails().stream()
-                    .mapToDouble(d -> {
-                        double qty  = d.getItemQuantity() != null ? d.getItemQuantity() : 0;
-                        double rate = d.getItemUnitRate() != null ? d.getItemUnitRate() : 0.0;
-                        double disc = d.getItemDiscount() != null ? d.getItemDiscount() : 0.0;
-                        return qty * rate * (1 - disc / 100);
+            BigDecimal totalValue = quoteHeader.getQuoteDetails().stream()
+                    .map(d -> {
+                        if (d.getItemQuantity() == null || d.getItemUnitRate() == null) {
+                            return BigDecimal.ZERO;
+                        }
+
+                        BigDecimal qty = new BigDecimal(d.getItemQuantity());
+                        BigDecimal rate = d.getItemUnitRate();
+                        BigDecimal disc = d.getItemDiscount() != null ? d.getItemDiscount() : BigDecimal.ZERO;
+
+                        BigDecimal discMultiplier = BigDecimal.ONE.subtract(
+                                disc.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
+                        );
+
+                        return qty.multiply(rate).multiply(discMultiplier);
                     })
-                    .sum();
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .setScale(2, RoundingMode.HALF_UP);
 
             quoteHeader.setTotalQuantity(totalQty);
             quoteHeader.setTotalValue(totalValue);
 
+            // Set org_id and relationships for all details
             quoteHeader.getQuoteDetails().forEach(detail -> {
+                detail.setOrgId(quoteHeader.getOrgId());
                 detail.setQuoteHeader(quoteHeader);
                 detail.setQuoteRef(quoteHeader.getQuoteRef());
+                detail.setCreatedBy(quoteHeader.getCreatedBy());
+                detail.setUpdatedBy(quoteHeader.getUpdatedBy());
             });
 
         } else {
             quoteHeader.setTotalQuantity(0);
-            quoteHeader.setTotalValue(0.0);
+            quoteHeader.setTotalValue(BigDecimal.ZERO);
         }
+    }
+
+    private void recalculateHeaderTotals(UUID quoteId, UUID orgId, UUID userId) {
+        QuoteHeader header = quoteHeaderRepository.findByQuoteIdAndOrgId(quoteId, orgId)
+                .orElseThrow(() -> new RuntimeException("Quote not found"));
+
+        List<QuoteDetail> allDetails = quoteDetailRepository.findByQuoteHeader_QuoteIdAndOrgId(quoteId, orgId);
+
+        int totalQty = allDetails.stream()
+                .mapToInt(d -> d.getItemQuantity() != null ? d.getItemQuantity() : 0)
+                .sum();
+
+        BigDecimal totalValue = allDetails.stream()
+                .map(d -> d.getItemValue() != null ? d.getItemValue() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        header.setTotalQuantity(totalQty);
+        header.setTotalValue(totalValue);
+
+        if (userId != null) {
+            header.setUpdatedBy(userId);
+        }
+
+        quoteHeaderRepository.save(header);
     }
 }
