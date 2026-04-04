@@ -1,14 +1,15 @@
 package com.example.demo.customer.controller;
 
 import com.example.demo.config.SecurityHelper;
-import com.example.demo.customer.entity.AppRole;
 import com.example.demo.customer.entity.AppUser;
 import com.example.demo.customer.repository.AppRoleRepository;
 import com.example.demo.customer.repository.AppUserRepository;
+import com.example.demo.customer.service.SuperAdminService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,23 +24,28 @@ import java.util.UUID;
 })
 public class AppUserController {
 
-    @Autowired
-    private AppUserRepository appUserRepository;
+    private static final UUID SUPER_ADMIN_ORG_ID =
+            UUID.fromString("10000000-0000-0000-0000-000000000001");
 
-    @Autowired
-    private AppRoleRepository appRoleRepository;
+    @Autowired private AppUserRepository appUserRepository;
+    @Autowired private AppRoleRepository appRoleRepository;
+    @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired private SecurityHelper securityHelper;
+    @Autowired private SuperAdminService superAdminService;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private boolean isSuperAdmin(UUID orgId) {
+        return SUPER_ADMIN_ORG_ID.equals(orgId);
+    }
 
-    @Autowired
-    private SecurityHelper securityHelper;
+    // ── GET /api/users ───────────────────────────────────────────────
 
     @GetMapping
     public ResponseEntity<List<AppUser>> getAll() {
         try {
             UUID orgId = securityHelper.getCurrentOrgId();
-            List<AppUser> users = appUserRepository.findByOrgId(orgId);
+            List<AppUser> users = isSuperAdmin(orgId)
+                    ? appUserRepository.findAll()
+                    : appUserRepository.findByOrgId(orgId);
             return ResponseEntity.ok(users);
         } catch (Exception e) {
             System.err.println("❌ Error fetching users: " + e.getMessage());
@@ -47,45 +53,61 @@ public class AppUserController {
         }
     }
 
+    // ── POST /api/users ──────────────────────────────────────────────
+
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, Object> payload) {
         try {
-            UUID orgId = securityHelper.getCurrentOrgId();
-            UUID userId = securityHelper.getCurrentUserId();
+            UUID currentOrgId = securityHelper.getCurrentOrgId();
+            UUID userId       = securityHelper.getCurrentUserId();
 
+            // Super admin can specify a target orgId, others use their own
+            UUID targetOrgId = currentOrgId;
+            Object orgIdObj = payload.get("orgId");
+            if (orgIdObj != null && !orgIdObj.toString().isBlank()) {
+                targetOrgId = UUID.fromString(orgIdObj.toString());
+            }
+
+            // Check username uniqueness
             String username = (String) payload.get("username");
-
-            // Check if username already exists in this org
-            if (appUserRepository.existsByUsernameAndOrgId(username, orgId)) {
+            if (appUserRepository.existsByUsernameAndOrgId(username, targetOrgId)) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Username '" + username + "' already exists"));
             }
 
+            // Seed roles for this org if none exist yet
+            superAdminService.seedRolesIfMissing(targetOrgId, userId);
+
+            // Build user
             AppUser user = new AppUser();
-            user.setOrgId(orgId);
+            user.setOrgId(targetOrgId);
             user.setFullName((String) payload.get("fullName"));
             user.setUsername(username);
             user.setPassword(passwordEncoder.encode((String) payload.get("password")));
+            user.setIsActive(true);
 
-            // Set email if provided
             if (payload.containsKey("email")) {
                 user.setEmail((String) payload.get("email"));
             }
 
-            // Set role if provided
+            // Assign role — use provided roleId, or default to Administrator
             Object roleIdObj = payload.get("roleId");
-            if (roleIdObj != null) {
+            if (roleIdObj != null && !roleIdObj.toString().isBlank()) {
                 UUID roleId = UUID.fromString(roleIdObj.toString());
-                appRoleRepository.findByRoleIdAndOrgId(roleId, orgId)
+                appRoleRepository.findByRoleIdAndOrgId(roleId, targetOrgId)
+                        .ifPresent(user::setAppRole);
+            } else {
+                // Auto-assign Administrator if no role specified
+                appRoleRepository.findByRoleNameAndOrgId("Administrator", targetOrgId)
                         .ifPresent(user::setAppRole);
             }
 
-            // Set audit fields
             user.setCreatedBy(userId);
             user.setUpdatedBy(userId);
 
             AppUser savedUser = appUserRepository.save(user);
             return new ResponseEntity<>(savedUser, HttpStatus.CREATED);
+
         } catch (Exception e) {
             System.err.println("❌ Error creating user: " + e.getMessage());
             e.printStackTrace();
@@ -93,45 +115,48 @@ public class AppUserController {
         }
     }
 
+    // ── PUT /api/users/{id} ──────────────────────────────────────────
+
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable UUID id, @RequestBody Map<String, Object> payload) {
+    public ResponseEntity<?> update(@PathVariable UUID id,
+                                    @RequestBody Map<String, Object> payload) {
         try {
             UUID orgId = securityHelper.getCurrentOrgId();
             UUID userId = securityHelper.getCurrentUserId();
 
-            return appUserRepository.findByUserIdAndOrgId(id, orgId).map(existing -> {
-                existing.setFullName((String) payload.get("fullName"));
+            // Super admin can update any user, others only their own org
+            AppUser existing = isSuperAdmin(orgId)
+                    ? appUserRepository.findById(id).orElse(null)
+                    : appUserRepository.findByUserIdAndOrgId(id, orgId).orElse(null);
 
-                // Update email if provided
-                if (payload.containsKey("email")) {
-                    existing.setEmail((String) payload.get("email"));
-                }
+            if (existing == null) return ResponseEntity.notFound().build();
 
-                // Update password if provided
-                String newPassword = (String) payload.get("password");
-                if (newPassword != null && !newPassword.isBlank()) {
-                    existing.setPassword(passwordEncoder.encode(newPassword));
-                }
+            existing.setFullName((String) payload.get("fullName"));
 
-                // Update role if provided
-                Object roleIdObj = payload.get("roleId");
-                if (roleIdObj != null) {
-                    UUID roleId = UUID.fromString(roleIdObj.toString());
-                    appRoleRepository.findByRoleIdAndOrgId(roleId, orgId)
-                            .ifPresent(existing::setAppRole);
-                }
+            if (payload.containsKey("email")) {
+                existing.setEmail((String) payload.get("email"));
+            }
 
-                // Update active status if provided
-                if (payload.containsKey("isActive")) {
-                    existing.setIsActive((Boolean) payload.get("isActive"));
-                }
+            String newPassword = (String) payload.get("password");
+            if (newPassword != null && !newPassword.isBlank()) {
+                existing.setPassword(passwordEncoder.encode(newPassword));
+            }
 
-                // Set audit field
-                existing.setUpdatedBy(userId);
+            Object roleIdObj = payload.get("roleId");
+            if (roleIdObj != null && !roleIdObj.toString().isBlank()) {
+                UUID roleId = UUID.fromString(roleIdObj.toString());
+                appRoleRepository.findByRoleIdAndOrgId(roleId, existing.getOrgId())
+                        .ifPresent(existing::setAppRole);
+            }
 
-                AppUser updated = appUserRepository.save(existing);
-                return ResponseEntity.ok(updated);
-            }).orElse(ResponseEntity.notFound().build());
+            if (payload.containsKey("isActive")) {
+                existing.setIsActive((Boolean) payload.get("isActive"));
+            }
+
+            existing.setUpdatedBy(userId);
+            AppUser updated = appUserRepository.save(existing);
+            return ResponseEntity.ok(updated);
+
         } catch (Exception e) {
             System.err.println("❌ Error updating user: " + e.getMessage());
             e.printStackTrace();
@@ -139,20 +164,23 @@ public class AppUserController {
         }
     }
 
+    // ── DELETE /api/users/{id} ───────────────────────────────────────
+
+    @Transactional
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         try {
             UUID orgId = securityHelper.getCurrentOrgId();
 
-            if (!appUserRepository.existsByUserIdAndOrgId(id, orgId)) {
-                return ResponseEntity.notFound().build();
-            }
+            AppUser user = isSuperAdmin(orgId)
+                    ? appUserRepository.findById(id).orElse(null)
+                    : appUserRepository.findByUserIdAndOrgId(id, orgId).orElse(null);
 
-            AppUser user = appUserRepository.findByUserIdAndOrgId(id, orgId)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+            if (user == null) return ResponseEntity.notFound().build();
 
             appUserRepository.delete(user);
             return ResponseEntity.noContent().build();
+
         } catch (Exception e) {
             System.err.println("❌ Error deleting user: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();

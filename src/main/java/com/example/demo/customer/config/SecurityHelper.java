@@ -1,88 +1,89 @@
 package com.example.demo.config;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
 import java.util.UUID;
 
 /**
- * SecurityHelper provides centralized access to current user's organization and identity.
+ * SecurityHelper provides centralized access to the current user's
+ * organization and identity from request headers.
  *
- * TODO: This is currently using hardcoded values for testing.
- * In production, this should extract values from:
- * - JWT tokens
- * - Spring Security context
- * - Session attributes
+ * Angular sends these headers on every API call:
+ *   X-Org-Id:  the logged-in user's orgId
+ *   X-User-Id: the logged-in user's userId
+ *
+ * TODO: Replace header-based approach with JWT token extraction
+ * once JWT authentication is fully implemented.
  */
 @Component
 public class SecurityHelper {
 
+    private static final String HEADER_ORG_ID  = "X-Org-Id";
+    private static final String HEADER_USER_ID = "X-User-Id";
+
+    // Fallback super-admin org ID used when no header is present
+    // (e.g. during testing or Postman calls)
+    private static final String FALLBACK_ORG_ID  = "10000000-0000-0000-0000-000000000001";
+    private static final String FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000001";
+
     /**
-     * Get the current user's organization ID.
-     *
-     * TODO: Replace with actual implementation that extracts from:
-     * - JWT token claims
-     * - SecurityContextHolder.getContext().getAuthentication()
-     * - Custom UserPrincipal object
-     *
-     * For now, returns the sample organization ID from the database
-     * (TechVision Inc - from sample data)
+     * Get the current user's organization ID from the request header.
      */
     public UUID getCurrentOrgId() {
-        // PRODUCTION CODE SHOULD LOOK LIKE:
-        // Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        // UserPrincipal principal = (UserPrincipal) auth.getPrincipal();
-        // return principal.getOrgId();
-
-        // FOR TESTING: Using sample org from database
-        return UUID.fromString("10000000-0000-0000-0000-000000000001");
+        String value = getHeader(HEADER_ORG_ID);
+        if (value == null || value.isBlank()) {
+            return UUID.fromString(FALLBACK_ORG_ID);
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return UUID.fromString(FALLBACK_ORG_ID);
+        }
     }
 
     /**
-     * Get the current user's ID.
-     *
-     * TODO: Replace with actual implementation that extracts from:
-     * - JWT token claims
-     * - SecurityContextHolder.getContext().getAuthentication()
-     * - Custom UserPrincipal object
-     *
-     * For now, returns a placeholder UUID
+     * Get the current user's ID from the request header.
      */
     public UUID getCurrentUserId() {
-        // PRODUCTION CODE SHOULD LOOK LIKE:
-        // Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        // UserPrincipal principal = (UserPrincipal) auth.getPrincipal();
-        // return principal.getUserId();
-
-        // FOR TESTING: Using placeholder
-        return UUID.fromString("00000000-0000-0000-0000-000000000001");
+        String value = getHeader(HEADER_USER_ID);
+        if (value == null || value.isBlank()) {
+            return UUID.fromString(FALLBACK_USER_ID);
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return UUID.fromString(FALLBACK_USER_ID);
+        }
     }
 
     /**
-     * Get the current user's username.
-     *
-     * TODO: Replace with actual implementation
+     * Get the current username from the request header.
      */
     public String getCurrentUsername() {
-        // PRODUCTION CODE SHOULD LOOK LIKE:
-        // Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        // return auth.getName();
-
-        // FOR TESTING: Using placeholder
-        return "system";
+        HttpServletRequest request = getCurrentRequest();
+        if (request == null) return "system";
+        String username = request.getHeader("X-Username");
+        return (username != null && !username.isBlank()) ? username : "system";
     }
 
-    /**
-     * Set organization context for testing purposes.
-     * This allows you to switch between organizations during testing.
-     *
-     * WARNING: Remove this method in production!
-     */
-    private UUID testOrgId = UUID.fromString("10000000-0000-0000-0000-000000000001");
+    // ── Private helper ───────────────────────────────────────────────
 
-    public void setTestOrgId(UUID orgId) {
-        this.testOrgId = orgId;
+    private String getHeader(String headerName) {
+        HttpServletRequest request = getCurrentRequest();
+        if (request == null) return null;
+        return request.getHeader(headerName);
     }
 
-    public UUID getTestOrgId() {
-        return this.testOrgId;
+    private HttpServletRequest getCurrentRequest() {
+        try {
+            ServletRequestAttributes attrs =
+                    (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            return attrs.getRequest();
+        } catch (IllegalStateException e) {
+            return null;
+        }
     }
 }

@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.example.demo.customer.config.PlatformConstants;
 
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,21 @@ public class AppRoleController {
             return ResponseEntity.ok(roles);
         } catch (Exception e) {
             System.err.println("❌ Error fetching roles: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/by-org/{orgId}")
+    public ResponseEntity<List<AppRole>> getByOrg(@PathVariable UUID orgId) {
+        try {
+            UUID currentOrgId = securityHelper.getCurrentOrgId();
+            // Only platform admin can fetch roles of other orgs
+            if (!PlatformConstants.isPlatformOrg(currentOrgId) && !currentOrgId.equals(orgId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+            List<AppRole> roles = appRoleRepository.findByOrgId(orgId);
+            return ResponseEntity.ok(roles);
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

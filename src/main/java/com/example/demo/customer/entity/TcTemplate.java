@@ -30,11 +30,14 @@ public class TcTemplate {
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "tc_template_item",
-            joinColumns = @JoinColumn(name = "template_id"),
-            inverseJoinColumns = @JoinColumn(name = "term_id")
+            joinColumns = {
+                    @JoinColumn(name = "template_id", referencedColumnName = "template_id"),
+                    @JoinColumn(name = "org_id", referencedColumnName = "org_id",
+                            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
+            },
+            inverseJoinColumns = @JoinColumn(name = "term_id", referencedColumnName = "term_id")
     )
     private List<TcLibrary> terms = new ArrayList<>();
-
     // Audit fields
     @Column(name = "created_by", columnDefinition = "UUID")
     private UUID createdBy;

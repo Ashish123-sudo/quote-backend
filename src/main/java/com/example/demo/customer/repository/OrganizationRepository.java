@@ -1,6 +1,6 @@
-package com.example.demo.customer.repository;
+package com.example.demo.organization.repository;
 
-import com.example.demo.customer.entity.Organization;
+import com.example.demo.organization.entity.Organization;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -11,25 +11,14 @@ import java.util.UUID;
 @Repository
 public interface OrganizationRepository extends JpaRepository<Organization, UUID> {
 
-    // Find by organization code
-    Optional<Organization> findByOrgCode(String orgCode);
-
-    // Find by organization name
-    Optional<Organization> findByOrgName(String orgName);
-    List<Organization> findByOrgNameContainingIgnoreCase(String orgName);
-
-    // Find active organizations
+    // ── Existing methods (unchanged) ─────────────────────────────────
     List<Organization> findByIsActiveTrue();
-
-    // Find by location
-    List<Organization> findByCity(String city);
-    List<Organization> findByCountry(String country);
-    List<Organization> findByCityAndCountry(String city, String country);
-
-    // Check existence
+    Optional<Organization> findByOrgCode(String orgCode);
     boolean existsByOrgCode(String orgCode);
-    boolean existsByOrgName(String orgName);
+    List<Organization> findBySubscriptionTier(String subscriptionTier);
+    List<Organization> findByIndustry(String industry);
 
-    // Count organizations
-    long countByIsActiveTrue();
+    // ── New: org-scoped queries for multi-tenancy ────────────────────
+    Optional<Organization> findByOrgIdAndOrgCode(UUID orgId, String orgCode);
+    boolean existsByOrgCodeAndOrgIdNot(String orgCode, UUID orgId);
 }

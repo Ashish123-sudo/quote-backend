@@ -1,5 +1,6 @@
-package com.example.demo.customer.entity;
+package com.example.demo.organization.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -18,15 +19,17 @@ public class OrganizationContact {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "org_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "contacts"})
     private Organization organization;
 
-    @Column(name = "contact_name", nullable = false)
+    // Legacy / convenience fields (already in DB)
+    @Column(name = "contact_name", length = 255)
     private String contactName;
 
     @Column(name = "contact_title", length = 100)
     private String contactTitle;
 
-    @Column(name = "contact_email")
+    @Column(name = "contact_email", length = 255)
     private String contactEmail;
 
     @Column(name = "contact_phone", length = 50)
@@ -35,151 +38,152 @@ public class OrganizationContact {
     @Column(name = "contact_mobile", length = 50)
     private String contactMobile;
 
+    // Name breakdown
+    @Column(name = "salutation", length = 20)
+    private String salutation;
+
+    @Column(name = "first_name", length = 100)
+    private String firstName;
+
+    @Column(name = "middle_name", length = 100)
+    private String middleName;
+
+    @Column(name = "last_name", length = 100)
+    private String lastName;
+
+    // Role info
+    @Column(name = "designation", length = 100)
+    private String designation;
+
+    @Column(name = "department", length = 100)
+    private String department;
+
+    @Column(name = "role", length = 100)
+    private String role;
+
+    // Office contact details
+    @Column(name = "office_desk_number", length = 50)
+    private String officeDeskNumber;
+
+    @Column(name = "office_extension", length = 20)
+    private String officeExtension;
+
+    @Column(name = "alternate_mobile", length = 50)
+    private String alternateMobile;
+
+    @Column(name = "fax_number", length = 50)
+    private String faxNumber;
+
+    @Column(name = "linkedin_profile", length = 255)
+    private String linkedinProfile;
+
+    // Flags
     @Column(name = "is_primary")
     private Boolean isPrimary = false;
 
     @Column(name = "is_active")
     private Boolean isActive = true;
 
-    // Audit fields
+    // Audit
     @Column(name = "created_by", columnDefinition = "UUID")
     private UUID createdBy;
 
-    @Column(name = "created_datetime", updatable = false)
     @CreationTimestamp
+    @Column(name = "created_datetime", updatable = false)
     private LocalDateTime createdDatetime;
 
     @Column(name = "updated_by", columnDefinition = "UUID")
     private UUID updatedBy;
 
-    @Column(name = "updated_datetime")
     @UpdateTimestamp
+    @Column(name = "updated_datetime")
     private LocalDateTime updatedDatetime;
 
     // Constructors
-    public OrganizationContact() {
-    }
-
-    public OrganizationContact(Organization organization, String contactName, String contactEmail) {
-        this.organization = organization;
-        this.contactName = contactName;
-        this.contactEmail = contactEmail;
-    }
+    public OrganizationContact() {}
 
     // Getters and Setters
-    public UUID getContactId() {
-        return contactId;
+    public UUID getContactId() { return contactId; }
+    public void setContactId(UUID contactId) { this.contactId = contactId; }
+
+    public Organization getOrganization() { return organization; }
+    public void setOrganization(Organization organization) { this.organization = organization; }
+
+    public UUID getOrgId() {
+        return organization != null ? organization.getOrgId() : null;
     }
 
-    public void setContactId(UUID contactId) {
-        this.contactId = contactId;
-    }
+    public String getContactName() { return contactName; }
+    public void setContactName(String contactName) { this.contactName = contactName; }
 
-    public Organization getOrganization() {
-        return organization;
-    }
+    public String getContactTitle() { return contactTitle; }
+    public void setContactTitle(String contactTitle) { this.contactTitle = contactTitle; }
 
-    public void setOrganization(Organization organization) {
-        this.organization = organization;
-    }
+    public String getContactEmail() { return contactEmail; }
+    public void setContactEmail(String contactEmail) { this.contactEmail = contactEmail; }
 
-    public String getContactName() {
-        return contactName;
-    }
+    public String getContactPhone() { return contactPhone; }
+    public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
 
-    public void setContactName(String contactName) {
-        this.contactName = contactName;
-    }
+    public String getContactMobile() { return contactMobile; }
+    public void setContactMobile(String contactMobile) { this.contactMobile = contactMobile; }
 
-    public String getContactTitle() {
-        return contactTitle;
-    }
+    public String getSalutation() { return salutation; }
+    public void setSalutation(String salutation) { this.salutation = salutation; }
 
-    public void setContactTitle(String contactTitle) {
-        this.contactTitle = contactTitle;
-    }
+    public String getFirstName() { return firstName; }
+    public void setFirstName(String firstName) { this.firstName = firstName; }
 
-    public String getContactEmail() {
-        return contactEmail;
-    }
+    public String getMiddleName() { return middleName; }
+    public void setMiddleName(String middleName) { this.middleName = middleName; }
 
-    public void setContactEmail(String contactEmail) {
-        this.contactEmail = contactEmail;
-    }
+    public String getLastName() { return lastName; }
+    public void setLastName(String lastName) { this.lastName = lastName; }
 
-    public String getContactPhone() {
-        return contactPhone;
-    }
+    public String getDesignation() { return designation; }
+    public void setDesignation(String designation) { this.designation = designation; }
 
-    public void setContactPhone(String contactPhone) {
-        this.contactPhone = contactPhone;
-    }
+    public String getDepartment() { return department; }
+    public void setDepartment(String department) { this.department = department; }
 
-    public String getContactMobile() {
-        return contactMobile;
-    }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 
-    public void setContactMobile(String contactMobile) {
-        this.contactMobile = contactMobile;
-    }
+    public String getOfficeDeskNumber() { return officeDeskNumber; }
+    public void setOfficeDeskNumber(String officeDeskNumber) { this.officeDeskNumber = officeDeskNumber; }
 
-    public Boolean getIsPrimary() {
-        return isPrimary;
-    }
+    public String getOfficeExtension() { return officeExtension; }
+    public void setOfficeExtension(String officeExtension) { this.officeExtension = officeExtension; }
 
-    public void setIsPrimary(Boolean isPrimary) {
-        this.isPrimary = isPrimary;
-    }
+    public String getAlternateMobile() { return alternateMobile; }
+    public void setAlternateMobile(String alternateMobile) { this.alternateMobile = alternateMobile; }
 
-    public Boolean getIsActive() {
-        return isActive;
-    }
+    public String getFaxNumber() { return faxNumber; }
+    public void setFaxNumber(String faxNumber) { this.faxNumber = faxNumber; }
 
-    public void setIsActive(Boolean isActive) {
-        this.isActive = isActive;
-    }
+    public String getLinkedinProfile() { return linkedinProfile; }
+    public void setLinkedinProfile(String linkedinProfile) { this.linkedinProfile = linkedinProfile; }
 
-    public UUID getCreatedBy() {
-        return createdBy;
-    }
+    public Boolean getIsPrimary() { return isPrimary; }
+    public void setIsPrimary(Boolean isPrimary) { this.isPrimary = isPrimary; }
 
-    public void setCreatedBy(UUID createdBy) {
-        this.createdBy = createdBy;
-    }
+    public Boolean getIsActive() { return isActive; }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
-    public LocalDateTime getCreatedDatetime() {
-        return createdDatetime;
-    }
+    public UUID getCreatedBy() { return createdBy; }
+    public void setCreatedBy(UUID createdBy) { this.createdBy = createdBy; }
 
-    public void setCreatedDatetime(LocalDateTime createdDatetime) {
-        this.createdDatetime = createdDatetime;
-    }
+    public LocalDateTime getCreatedDatetime() { return createdDatetime; }
+    public void setCreatedDatetime(LocalDateTime createdDatetime) { this.createdDatetime = createdDatetime; }
 
-    public UUID getUpdatedBy() {
-        return updatedBy;
-    }
+    public UUID getUpdatedBy() { return updatedBy; }
+    public void setUpdatedBy(UUID updatedBy) { this.updatedBy = updatedBy; }
 
-    public void setUpdatedBy(UUID updatedBy) {
-        this.updatedBy = updatedBy;
-    }
-
-    public LocalDateTime getUpdatedDatetime() {
-        return updatedDatetime;
-    }
-
-    public void setUpdatedDatetime(LocalDateTime updatedDatetime) {
-        this.updatedDatetime = updatedDatetime;
-    }
+    public LocalDateTime getUpdatedDatetime() { return updatedDatetime; }
+    public void setUpdatedDatetime(LocalDateTime updatedDatetime) { this.updatedDatetime = updatedDatetime; }
 
     @Override
     public String toString() {
-        return "OrganizationContact{" +
-                "contactId=" + contactId +
-                ", contactName='" + contactName + '\'' +
-                ", contactTitle='" + contactTitle + '\'' +
-                ", contactEmail='" + contactEmail + '\'' +
-                ", isPrimary=" + isPrimary +
-                ", isActive=" + isActive +
-                '}';
+        return "OrganizationContact{contactId=" + contactId + ", firstName='" + firstName + "', lastName='" + lastName + "'}";
     }
 }
