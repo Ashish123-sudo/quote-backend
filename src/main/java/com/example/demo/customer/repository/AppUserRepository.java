@@ -1,5 +1,6 @@
 package com.example.demo.customer.repository;
 
+import com.example.demo.customer.entity.AppRole;
 import com.example.demo.customer.entity.AppUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -12,6 +13,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     AppUser findByUsername(String username);
 
     List<AppUser> findByOrgId(UUID orgId);
+
+    List<AppUser> findByOrgIdAndAppRole(UUID orgId, AppRole appRole);
 
     Optional<AppUser> findByUserIdAndOrgId(UUID userId, UUID orgId);
 

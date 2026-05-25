@@ -1,6 +1,10 @@
 package com.example.demo.quote.controller;
 
+import com.example.demo.config.BrevoEmailService;
 import com.example.demo.config.SecurityHelper;
+import com.example.demo.customer.entity.AppUser;
+import com.example.demo.customer.repository.AppRoleRepository;
+import com.example.demo.customer.repository.AppUserRepository;
 import com.example.demo.quote.entity.QuoteDetail;
 import com.example.demo.quote.entity.QuoteHeader;
 import com.example.demo.quote.entity.QuoteTermsCondition;
@@ -24,14 +28,12 @@ import java.util.UUID;
 })
 public class QuoteController {
 
-    @Autowired
-    private QuoteService quoteService;
-
-    @Autowired
-    private QuoteHeaderRepository quoteHeaderRepository;
-
-    @Autowired
-    private SecurityHelper securityHelper;
+    @Autowired private QuoteService quoteService;
+    @Autowired private QuoteHeaderRepository quoteHeaderRepository;
+    @Autowired private BrevoEmailService brevoEmailService;
+    @Autowired private AppUserRepository appUserRepository;
+    @Autowired private AppRoleRepository appRoleRepository;
+    @Autowired private SecurityHelper securityHelper;
 
     // GET all quotes
     @GetMapping
@@ -42,22 +44,6 @@ public class QuoteController {
             return new ResponseEntity<>(quotes, HttpStatus.OK);
         } catch (Exception e) {
             System.err.println("❌ Error fetching quotes: " + e.getMessage());
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    // UPDATE quote terms
-    @PutMapping("/{id}/terms")
-    public ResponseEntity<Void> updateQuoteTerms(@PathVariable UUID id,
-                                                 @RequestBody List<QuoteTermsCondition> terms) {
-        try {
-            UUID orgId = securityHelper.getCurrentOrgId();
-            UUID userId = securityHelper.getCurrentUserId();
-            quoteService.updateQuoteTerms(id, terms, orgId, userId);
-            return new ResponseEntity<>(HttpStatus.OK);
-        } catch (Exception e) {
-            System.err.println("❌ Error updating quote terms: " + e.getMessage());
-            e.printStackTrace();
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -103,6 +89,19 @@ public class QuoteController {
         }
     }
 
+    // GET next quote reference
+    @GetMapping("/next-ref")
+    public ResponseEntity<String> getNextQuoteRef() {
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+            String nextRef = quoteService.peekNextQuoteRef(orgId);  // peek only, no increment
+            return ResponseEntity.ok(nextRef);
+        } catch (Exception e) {
+            System.err.println("❌ Error generating quote ref: " + e.getMessage());
+            return ResponseEntity.status(500).body("Error generating reference");
+        }
+    }
+
     // POST create new quote
     @PostMapping
     public ResponseEntity<QuoteHeader> createQuote(@RequestBody QuoteHeader quoteHeader) {
@@ -115,76 +114,6 @@ public class QuoteController {
             System.err.println("❌ Error creating quote: " + e.getMessage());
             e.printStackTrace();
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    // SUBMIT for approval
-    @PutMapping("/{id}/submit")
-    public ResponseEntity<?> submitForApproval(@PathVariable UUID id,
-                                               @RequestBody Map<String, String> payload) {
-        try {
-            UUID orgId = securityHelper.getCurrentOrgId();
-            UUID userId = securityHelper.getCurrentUserId();
-
-            QuoteHeader quote = quoteService.getQuoteById(id, orgId)
-                    .orElseThrow(() -> new RuntimeException("Quote not found"));
-
-            quote.setApprovalStatus("PENDING");
-            quote.setSubmittedBy(payload.get("submittedBy"));
-            quote.setUpdatedBy(userId);
-
-            quoteHeaderRepository.save(quote);
-            return ResponseEntity.ok(quote);
-        } catch (Exception e) {
-            System.err.println("❌ Error submitting quote: " + e.getMessage());
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    // APPROVE quote
-    @PutMapping("/{id}/approve")
-    public ResponseEntity<?> approveQuote(@PathVariable UUID id,
-                                          @RequestBody Map<String, String> payload) {
-        try {
-            UUID orgId = securityHelper.getCurrentOrgId();
-            UUID userId = securityHelper.getCurrentUserId();
-
-            QuoteHeader quote = quoteService.getQuoteById(id, orgId)
-                    .orElseThrow(() -> new RuntimeException("Quote not found"));
-
-            quote.setApprovalStatus("APPROVED");
-            quote.setApprovedBy(payload.get("approvedBy"));
-            quote.setUpdatedBy(userId);
-
-            quoteHeaderRepository.save(quote);
-            return ResponseEntity.ok(quote);
-        } catch (Exception e) {
-            System.err.println("❌ Error approving quote: " + e.getMessage());
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    // REJECT quote
-    @PutMapping("/{id}/reject")
-    public ResponseEntity<?> rejectQuote(@PathVariable UUID id,
-                                         @RequestBody Map<String, String> payload) {
-        try {
-            UUID orgId = securityHelper.getCurrentOrgId();
-            UUID userId = securityHelper.getCurrentUserId();
-
-            QuoteHeader quote = quoteService.getQuoteById(id, orgId)
-                    .orElseThrow(() -> new RuntimeException("Quote not found"));
-
-            quote.setApprovalStatus("REJECTED");
-            quote.setApprovedBy(payload.get("approvedBy"));
-            quote.setRejectionReason(payload.get("rejectionReason"));
-            quote.setUpdatedBy(userId);
-
-            quoteHeaderRepository.save(quote);
-            return ResponseEntity.ok(quote);
-        } catch (Exception e) {
-            System.err.println("❌ Error rejecting quote: " + e.getMessage());
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -207,6 +136,137 @@ public class QuoteController {
         }
     }
 
+    // UPDATE quote terms
+    @PutMapping("/{id}/terms")
+    public ResponseEntity<Void> updateQuoteTerms(@PathVariable UUID id,
+                                                 @RequestBody List<QuoteTermsCondition> terms) {
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+            UUID userId = securityHelper.getCurrentUserId();
+            quoteService.updateQuoteTerms(id, terms, orgId, userId);
+            return new ResponseEntity<>(HttpStatus.OK);
+        } catch (Exception e) {
+            System.err.println("❌ Error updating quote terms: " + e.getMessage());
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // SUBMIT for approval
+    @PutMapping("/{id}/submit")
+    public ResponseEntity<?> submitForApproval(@PathVariable UUID id,
+                                               @RequestBody Map<String, String> payload) {
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+            UUID userId = securityHelper.getCurrentUserId();
+
+            QuoteHeader quote = quoteService.getQuoteById(id, orgId)
+                    .orElseThrow(() -> new RuntimeException("Quote not found"));
+
+            quote.setApprovalStatus("PENDING");
+            quote.setSubmittedBy(payload.get("submittedBy"));
+            quote.setUpdatedBy(userId);
+            quoteHeaderRepository.save(quote);
+
+            // Notify all Quote Approvers in this org
+            appRoleRepository.findByRoleNameAndOrgId("Quote Approver", orgId).ifPresent(role -> {
+                List<AppUser> approvers = appUserRepository.findByOrgIdAndAppRole(orgId, role);
+                for (AppUser approver : approvers) {
+                    if (approver.getEmail() != null && !approver.getEmail().isBlank()) {
+                        String subject = "Quote " + quote.getQuoteRef() + " submitted for approval";
+                        String html = "<p>Hi " + approver.getFullName() + ",</p>"
+                                + "<p>Quote <strong>" + quote.getQuoteRef() + "</strong> has been submitted for your approval.</p>"
+                                + "<p>Customer: " + (quote.getCustomer() != null ? quote.getCustomer().getName() : "—") + "<br>"
+                                + "Total Value: " + quote.getCurrency() + " " + quote.getTotalValue() + "</p>"
+                                + "<p>Please log in to QuoteApp to review.</p>";
+                        brevoEmailService.sendEmail(approver.getEmail(), approver.getFullName(), subject, html);
+                    }
+                }
+            });
+
+            return ResponseEntity.ok(quote);
+        } catch (Exception e) {
+            System.err.println("❌ Error submitting quote: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // APPROVE quote
+    @PutMapping("/{id}/approve")
+    public ResponseEntity<?> approveQuote(@PathVariable UUID id,
+                                          @RequestBody Map<String, String> payload) {
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+            UUID userId = securityHelper.getCurrentUserId();
+
+            QuoteHeader quote = quoteService.getQuoteById(id, orgId)
+                    .orElseThrow(() -> new RuntimeException("Quote not found"));
+
+            quote.setApprovalStatus("APPROVED");
+            quote.setApprovedBy(payload.get("approvedBy"));
+            quote.setUpdatedBy(userId);
+            quoteHeaderRepository.save(quote);
+
+            // Notify quote creator
+            if (quote.getCreatedBy() != null) {
+                appUserRepository.findById(quote.getCreatedBy()).ifPresent(creator -> {
+                    if (creator.getEmail() != null && !creator.getEmail().isBlank()) {
+                        String subject = "Quote " + quote.getQuoteRef() + " has been APPROVED ✅";
+                        String html = "<p>Hi " + creator.getFullName() + ",</p>"
+                                + "<p>Your quote <strong>" + quote.getQuoteRef() + "</strong> has been <strong style='color:green'>approved</strong>.</p>"
+                                + "<p>Customer: " + (quote.getCustomer() != null ? quote.getCustomer().getName() : "—") + "<br>"
+                                + "Total Value: " + quote.getCurrency() + " " + quote.getTotalValue() + "</p>";
+                        brevoEmailService.sendEmail(creator.getEmail(), creator.getFullName(), subject, html);
+                    }
+                });
+            }
+
+            return ResponseEntity.ok(quote);
+        } catch (Exception e) {
+            System.err.println("❌ Error approving quote: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // REJECT quote
+    @PutMapping("/{id}/reject")
+    public ResponseEntity<?> rejectQuote(@PathVariable UUID id,
+                                         @RequestBody Map<String, String> payload) {
+        try {
+            UUID orgId = securityHelper.getCurrentOrgId();
+            UUID userId = securityHelper.getCurrentUserId();
+
+            QuoteHeader quote = quoteService.getQuoteById(id, orgId)
+                    .orElseThrow(() -> new RuntimeException("Quote not found"));
+
+            quote.setApprovalStatus("REJECTED");
+            quote.setApprovedBy(payload.get("approvedBy"));
+            quote.setRejectionReason(payload.get("rejectionReason"));
+            quote.setUpdatedBy(userId);
+            quoteHeaderRepository.save(quote);
+
+            // Notify quote creator
+            if (quote.getCreatedBy() != null) {
+                appUserRepository.findById(quote.getCreatedBy()).ifPresent(creator -> {
+                    if (creator.getEmail() != null && !creator.getEmail().isBlank()) {
+                        String subject = "Quote " + quote.getQuoteRef() + " has been REJECTED ❌";
+                        String html = "<p>Hi " + creator.getFullName() + ",</p>"
+                                + "<p>Your quote <strong>" + quote.getQuoteRef() + "</strong> has been <strong style='color:red'>rejected</strong>.</p>"
+                                + "<p>Reason: " + payload.get("rejectionReason") + "</p>"
+                                + "<p>Customer: " + (quote.getCustomer() != null ? quote.getCustomer().getName(): "—") + "<br>"
+                                + "Total Value: " + quote.getCurrency() + " " + quote.getTotalValue() + "</p>";
+                        brevoEmailService.sendEmail(creator.getEmail(), creator.getFullName(), subject, html);
+                    }
+                });
+            }
+
+            return ResponseEntity.ok(quote);
+        } catch (Exception e) {
+            System.err.println("❌ Error rejecting quote: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
     // DELETE quote
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteQuote(@PathVariable UUID id) {
@@ -223,20 +283,7 @@ public class QuoteController {
         }
     }
 
-    // GET next quote reference
-    @GetMapping("/quotes/next-ref")
-    public ResponseEntity<String> getNextQuoteRef() {
-        try {
-            UUID orgId = securityHelper.getCurrentOrgId();
-            String nextRef = quoteService.generateNextQuoteRef(orgId);
-            return ResponseEntity.ok(nextRef);
-        } catch (Exception e) {
-            System.err.println("❌ Error generating quote ref: " + e.getMessage());
-            return ResponseEntity.status(500).body("Error generating reference");
-        }
-    }
-
-    // ✅ POST add single quote detail
+    // POST add single quote detail
     @PostMapping("/detail")
     public ResponseEntity<QuoteDetail> addQuoteDetail(@RequestBody QuoteDetail quoteDetail) {
         try {
@@ -255,7 +302,7 @@ public class QuoteController {
         }
     }
 
-    // ✅ PUT update single quote detail
+    // PUT update single quote detail
     @PutMapping("/detail/{slNo}")
     public ResponseEntity<QuoteDetail> updateQuoteDetail(@PathVariable UUID slNo,
                                                          @RequestBody QuoteDetail quoteDetail) {

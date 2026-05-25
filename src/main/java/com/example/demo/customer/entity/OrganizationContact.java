@@ -22,18 +22,9 @@ public class OrganizationContact {
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "contacts"})
     private Organization organization;
 
-    // Legacy / convenience fields (already in DB)
-    @Column(name = "contact_name", length = 255)
-    private String contactName;
-
-    @Column(name = "contact_title", length = 100)
-    private String contactTitle;
-
+    // Contact details
     @Column(name = "contact_email", length = 255)
     private String contactEmail;
-
-    @Column(name = "contact_phone", length = 50)
-    private String contactPhone;
 
     @Column(name = "contact_mobile", length = 50)
     private String contactMobile;
@@ -57,9 +48,6 @@ public class OrganizationContact {
 
     @Column(name = "department", length = 100)
     private String department;
-
-    @Column(name = "role", length = 100)
-    private String role;
 
     // Office contact details
     @Column(name = "office_desk_number", length = 50)
@@ -113,17 +101,8 @@ public class OrganizationContact {
         return organization != null ? organization.getOrgId() : null;
     }
 
-    public String getContactName() { return contactName; }
-    public void setContactName(String contactName) { this.contactName = contactName; }
-
-    public String getContactTitle() { return contactTitle; }
-    public void setContactTitle(String contactTitle) { this.contactTitle = contactTitle; }
-
     public String getContactEmail() { return contactEmail; }
     public void setContactEmail(String contactEmail) { this.contactEmail = contactEmail; }
-
-    public String getContactPhone() { return contactPhone; }
-    public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
 
     public String getContactMobile() { return contactMobile; }
     public void setContactMobile(String contactMobile) { this.contactMobile = contactMobile; }
@@ -145,9 +124,6 @@ public class OrganizationContact {
 
     public String getDepartment() { return department; }
     public void setDepartment(String department) { this.department = department; }
-
-    public String getRole() { return role; }
-    public void setRole(String role) { this.role = role; }
 
     public String getOfficeDeskNumber() { return officeDeskNumber; }
     public void setOfficeDeskNumber(String officeDeskNumber) { this.officeDeskNumber = officeDeskNumber; }

@@ -72,14 +72,6 @@ public class OrganizationContactServiceImpl implements OrganizationContactServic
             contact.setIsPrimary(false);
         }
 
-        // Auto-populate contactName from first + last if not provided
-        if ((contact.getContactName() == null || contact.getContactName().isBlank())
-                && contact.getFirstName() != null) {
-            String fullName = contact.getFirstName()
-                    + (contact.getLastName() != null ? " " + contact.getLastName() : "");
-            contact.setContactName(fullName.trim());
-        }
-
         return contactRepository.save(contact);
     }
 
@@ -96,33 +88,22 @@ public class OrganizationContactServiceImpl implements OrganizationContactServic
             clearExistingPrimary(orgId);
         }
 
-        existing.setContactName(updated.getContactName());
-        existing.setContactTitle(updated.getContactTitle());
-        existing.setContactEmail(updated.getContactEmail());
-        existing.setContactPhone(updated.getContactPhone());
-        existing.setContactMobile(updated.getContactMobile());
         existing.setSalutation(updated.getSalutation());
         existing.setFirstName(updated.getFirstName());
         existing.setMiddleName(updated.getMiddleName());
         existing.setLastName(updated.getLastName());
         existing.setDesignation(updated.getDesignation());
         existing.setDepartment(updated.getDepartment());
-        existing.setRole(updated.getRole());
+
         existing.setOfficeDeskNumber(updated.getOfficeDeskNumber());
         existing.setOfficeExtension(updated.getOfficeExtension());
         existing.setAlternateMobile(updated.getAlternateMobile());
         existing.setFaxNumber(updated.getFaxNumber());
+        existing.setContactMobile(updated.getContactMobile());
         existing.setLinkedinProfile(updated.getLinkedinProfile());
         existing.setIsPrimary(updated.getIsPrimary());
         existing.setIsActive(updated.getIsActive());
 
-        // Auto-populate contactName from first + last if not provided
-        if ((updated.getContactName() == null || updated.getContactName().isBlank())
-                && updated.getFirstName() != null) {
-            String fullName = updated.getFirstName()
-                    + (updated.getLastName() != null ? " " + updated.getLastName() : "");
-            existing.setContactName(fullName.trim());
-        }
 
         // Tag audit
         existing.setUpdatedBy(securityHelper.getCurrentUserId());

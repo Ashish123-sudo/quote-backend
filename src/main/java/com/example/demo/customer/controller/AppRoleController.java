@@ -31,7 +31,12 @@ public class AppRoleController {
     public ResponseEntity<List<AppRole>> getAll() {
         try {
             UUID orgId = securityHelper.getCurrentOrgId();
-            List<AppRole> roles = appRoleRepository.findByOrgId(orgId);
+
+            // Super Admin sees all roles across all orgs
+            List<AppRole> roles = PlatformConstants.isPlatformOrg(orgId)
+                    ? appRoleRepository.findAll()
+                    : appRoleRepository.findByOrgId(orgId);
+
             return ResponseEntity.ok(roles);
         } catch (Exception e) {
             System.err.println("❌ Error fetching roles: " + e.getMessage());
