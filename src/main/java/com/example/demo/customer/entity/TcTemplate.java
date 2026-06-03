@@ -1,24 +1,30 @@
 package com.example.demo.customer.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "tc_template")
 public class TcTemplate {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "template_id", columnDefinition = "UUID")
+    @Column(name = "template_id")                      // ✅ removed columnDefinition = "UUID"
     private UUID templateId;
 
-    @Column(name = "org_id", nullable = false, columnDefinition = "UUID")
+    @Column(name = "org_id", nullable = false)         // ✅ removed columnDefinition = "UUID"
     private UUID orgId;
 
     @Column(name = "template_name", length = 200, nullable = false)
@@ -27,112 +33,47 @@ public class TcTemplate {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "tc_template_item",
-            joinColumns = {
-                    @JoinColumn(name = "template_id", referencedColumnName = "template_id"),
-                    @JoinColumn(name = "org_id", referencedColumnName = "org_id",
-                            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
-            },
-            inverseJoinColumns = @JoinColumn(name = "term_id", referencedColumnName = "term_id")
-    )
-    private List<TcLibrary> terms = new ArrayList<>();
+    // ✅ replaced @ManyToMany + @JoinTable with proper join entity
+    @JsonIgnore
+    @OneToMany(mappedBy = "template", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TcTemplateItem> templateItems = new ArrayList<>();
+
     // Audit fields
-    @Column(name = "created_by", columnDefinition = "UUID")
+    @Column(name = "created_by")                       // ✅ removed columnDefinition = "UUID"
     private UUID createdBy;
 
-    @Column(name = "created_datetime", updatable = false)
     @CreationTimestamp
+    @Column(name = "created_datetime", updatable = false)
     private LocalDateTime createdDatetime;
 
-    @Column(name = "updated_by", columnDefinition = "UUID")
+    @Column(name = "updated_by")                       // ✅ removed columnDefinition = "UUID"
     private UUID updatedBy;
 
-    @Column(name = "updated_datetime")
     @UpdateTimestamp
+    @Column(name = "updated_datetime")
     private LocalDateTime updatedDatetime;
-
-    // Constructors
-    public TcTemplate() {
-    }
 
     public TcTemplate(UUID orgId, String templateName) {
         this.orgId = orgId;
         this.templateName = templateName;
     }
 
-    // Getters and Setters
-    public UUID getTemplateId() {
-        return templateId;
-    }
-
-    public void setTemplateId(UUID templateId) {
-        this.templateId = templateId;
-    }
-
-    public UUID getOrgId() {
-        return orgId;
-    }
-
-    public void setOrgId(UUID orgId) {
-        this.orgId = orgId;
-    }
-
-    public String getTemplateName() {
-        return templateName;
-    }
-
-    public void setTemplateName(String templateName) {
-        this.templateName = templateName;
-    }
-
-    public Boolean getIsActive() {
-        return isActive;
-    }
-
-    public void setIsActive(Boolean isActive) {
-        this.isActive = isActive;
-    }
-
+    // ✅ helper — get flat list of TcLibrary terms without exposing join entity to callers
     public List<TcLibrary> getTerms() {
-        return terms;
+        return templateItems.stream()
+                .map(TcTemplateItem::getTerm)
+                .toList();
     }
 
-    public void setTerms(List<TcLibrary> terms) {
-        this.terms = terms;
+    // ✅ helper — add a term properly through the join entity
+    public void addTerm(TcLibrary term) {
+        TcTemplateItem item = new TcTemplateItem(this, term, this.orgId);
+        templateItems.add(item);
     }
 
-    public UUID getCreatedBy() {
-        return createdBy;
-    }
-
-    public void setCreatedBy(UUID createdBy) {
-        this.createdBy = createdBy;
-    }
-
-    public LocalDateTime getCreatedDatetime() {
-        return createdDatetime;
-    }
-
-    public void setCreatedDatetime(LocalDateTime createdDatetime) {
-        this.createdDatetime = createdDatetime;
-    }
-
-    public UUID getUpdatedBy() {
-        return updatedBy;
-    }
-
-    public void setUpdatedBy(UUID updatedBy) {
-        this.updatedBy = updatedBy;
-    }
-
-    public LocalDateTime getUpdatedDatetime() {
-        return updatedDatetime;
-    }
-
-    public void setUpdatedDatetime(LocalDateTime updatedDatetime) {
-        this.updatedDatetime = updatedDatetime;
+    // ✅ helper — remove a term
+    public void removeTerm(TcLibrary term) {
+        templateItems.removeIf(item -> item.getTerm().equals(term));
     }
 
     @Override

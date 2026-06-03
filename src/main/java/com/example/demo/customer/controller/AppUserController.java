@@ -5,7 +5,6 @@ import com.example.demo.customer.entity.AppUser;
 import com.example.demo.customer.repository.AppRoleRepository;
 import com.example.demo.customer.repository.AppUserRepository;
 import com.example.demo.customer.service.SuperAdminService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,17 +26,27 @@ public class AppUserController {
     private static final UUID SUPER_ADMIN_ORG_ID =
             UUID.fromString("10000000-0000-0000-0000-000000000001");
 
-    @Autowired private AppUserRepository appUserRepository;
-    @Autowired private AppRoleRepository appRoleRepository;
-    @Autowired private PasswordEncoder passwordEncoder;
-    @Autowired private SecurityHelper securityHelper;
-    @Autowired private SuperAdminService superAdminService;
+    private final AppUserRepository appUserRepository;
+    private final AppRoleRepository appRoleRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final SecurityHelper securityHelper;
+    private final SuperAdminService superAdminService;
+
+    public AppUserController(AppUserRepository appUserRepository,
+                             AppRoleRepository appRoleRepository,
+                             PasswordEncoder passwordEncoder,
+                             SecurityHelper securityHelper,
+                             SuperAdminService superAdminService) {
+        this.appUserRepository  = appUserRepository;
+        this.appRoleRepository  = appRoleRepository;
+        this.passwordEncoder    = passwordEncoder;
+        this.securityHelper     = securityHelper;
+        this.superAdminService  = superAdminService;
+    }
 
     private boolean isSuperAdmin(UUID orgId) {
         return SUPER_ADMIN_ORG_ID.equals(orgId);
     }
-
-    // ── GET /api/users ───────────────────────────────────────────────
 
     @GetMapping
     public ResponseEntity<List<AppUser>> getAll() {
@@ -52,33 +61,27 @@ public class AppUserController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-
-    // ── POST /api/users ──────────────────────────────────────────────
-
+    @Transactional
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, Object> payload) {
         try {
             UUID currentOrgId = securityHelper.getCurrentOrgId();
             UUID userId       = securityHelper.getCurrentUserId();
 
-            // Super admin can specify a target orgId, others use their own
             UUID targetOrgId = currentOrgId;
             Object orgIdObj = payload.get("orgId");
             if (orgIdObj != null && !orgIdObj.toString().isBlank()) {
                 targetOrgId = UUID.fromString(orgIdObj.toString());
             }
 
-            // Check username uniqueness
             String username = (String) payload.get("username");
             if (appUserRepository.existsByUsernameAndOrgId(username, targetOrgId)) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Username '" + username + "' already exists"));
             }
 
-            // Seed roles for this org if none exist yet
             superAdminService.seedRolesIfMissing(targetOrgId, userId);
 
-            // Build user
             AppUser user = new AppUser();
             user.setOrgId(targetOrgId);
             user.setFullName((String) payload.get("fullName"));
@@ -90,14 +93,12 @@ public class AppUserController {
                 user.setEmail((String) payload.get("email"));
             }
 
-            // Assign role — use provided roleId, or default to Administrator
             Object roleIdObj = payload.get("roleId");
             if (roleIdObj != null && !roleIdObj.toString().isBlank()) {
                 UUID roleId = UUID.fromString(roleIdObj.toString());
                 appRoleRepository.findByRoleIdAndOrgId(roleId, targetOrgId)
                         .ifPresent(user::setAppRole);
             } else {
-                // Auto-assign Administrator if no role specified
                 appRoleRepository.findByRoleNameAndOrgId("Administrator", targetOrgId)
                         .ifPresent(user::setAppRole);
             }
@@ -114,9 +115,7 @@ public class AppUserController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-
-    // ── PUT /api/users/{id} ──────────────────────────────────────────
-
+    @Transactional
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable UUID id,
                                     @RequestBody Map<String, Object> payload) {
@@ -124,7 +123,6 @@ public class AppUserController {
             UUID orgId = securityHelper.getCurrentOrgId();
             UUID userId = securityHelper.getCurrentUserId();
 
-            // Super admin can update any user, others only their own org
             AppUser existing = isSuperAdmin(orgId)
                     ? appUserRepository.findById(id).orElse(null)
                     : appUserRepository.findByUserIdAndOrgId(id, orgId).orElse(null);
@@ -163,8 +161,6 @@ public class AppUserController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-
-    // ── DELETE /api/users/{id} ───────────────────────────────────────
 
     @Transactional
     @DeleteMapping("/{id}")

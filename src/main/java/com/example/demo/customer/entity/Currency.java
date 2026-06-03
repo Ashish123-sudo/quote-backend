@@ -1,22 +1,28 @@
 package com.example.demo.customer.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "currency")
 public class Currency {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "currency_id", columnDefinition = "UUID")
+    @Column(name = "currency_id")                      // ✅ removed columnDefinition = "UUID"
     private UUID currencyId;
 
-    @Column(name = "org_id", nullable = false, columnDefinition = "UUID")
+    @Column(name = "org_id", nullable = false)         // ✅ removed columnDefinition = "UUID"
     private UUID orgId;
 
     @Column(name = "currency_code", length = 10, nullable = false)
@@ -29,102 +35,25 @@ public class Currency {
     private Boolean isDefault = false;
 
     // Audit fields
-    @Column(name = "created_by", columnDefinition = "UUID")
+    @Column(name = "created_by")                       // ✅ removed columnDefinition = "UUID"
     private UUID createdBy;
 
-    @Column(name = "created_datetime", updatable = false)
     @CreationTimestamp
+    @Column(name = "created_datetime", updatable = false)
     private LocalDateTime createdDatetime;
 
-    @Column(name = "updated_by", columnDefinition = "UUID")
+    @Column(name = "updated_by")                       // ✅ removed columnDefinition = "UUID"
     private UUID updatedBy;
 
-    @Column(name = "updated_datetime")
     @UpdateTimestamp
+    @Column(name = "updated_datetime")
     private LocalDateTime updatedDatetime;
-
-    // Constructors
-    public Currency() {
-    }
 
     public Currency(UUID orgId, String currencyCode, String currencyName, Boolean isDefault) {
         this.orgId = orgId;
         this.currencyCode = currencyCode;
         this.currencyName = currencyName;
         this.isDefault = isDefault;
-    }
-
-    // Getters and Setters
-    public UUID getCurrencyId() {
-        return currencyId;
-    }
-
-    public void setCurrencyId(UUID currencyId) {
-        this.currencyId = currencyId;
-    }
-
-    public UUID getOrgId() {
-        return orgId;
-    }
-
-    public void setOrgId(UUID orgId) {
-        this.orgId = orgId;
-    }
-
-    public String getCurrencyCode() {
-        return currencyCode;
-    }
-
-    public void setCurrencyCode(String currencyCode) {
-        this.currencyCode = currencyCode;
-    }
-
-    public String getCurrencyName() {
-        return currencyName;
-    }
-
-    public void setCurrencyName(String currencyName) {
-        this.currencyName = currencyName;
-    }
-
-    public Boolean getIsDefault() {
-        return isDefault;
-    }
-
-    public void setIsDefault(Boolean isDefault) {
-        this.isDefault = isDefault;
-    }
-
-    public UUID getCreatedBy() {
-        return createdBy;
-    }
-
-    public void setCreatedBy(UUID createdBy) {
-        this.createdBy = createdBy;
-    }
-
-    public LocalDateTime getCreatedDatetime() {
-        return createdDatetime;
-    }
-
-    public void setCreatedDatetime(LocalDateTime createdDatetime) {
-        this.createdDatetime = createdDatetime;
-    }
-
-    public UUID getUpdatedBy() {
-        return updatedBy;
-    }
-
-    public void setUpdatedBy(UUID updatedBy) {
-        this.updatedBy = updatedBy;
-    }
-
-    public LocalDateTime getUpdatedDatetime() {
-        return updatedDatetime;
-    }
-
-    public void setUpdatedDatetime(LocalDateTime updatedDatetime) {
-        this.updatedDatetime = updatedDatetime;
     }
 
     @Override

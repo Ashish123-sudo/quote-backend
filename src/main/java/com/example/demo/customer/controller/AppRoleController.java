@@ -3,7 +3,6 @@ package com.example.demo.customer.controller;
 import com.example.demo.config.SecurityHelper;
 import com.example.demo.customer.entity.AppRole;
 import com.example.demo.customer.repository.AppRoleRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,22 +20,22 @@ import java.util.UUID;
 })
 public class AppRoleController {
 
-    @Autowired
-    private AppRoleRepository appRoleRepository;
+    private final AppRoleRepository appRoleRepository;
+    private final SecurityHelper securityHelper;
 
-    @Autowired
-    private SecurityHelper securityHelper;
+    public AppRoleController(AppRoleRepository appRoleRepository,
+                             SecurityHelper securityHelper) {
+        this.appRoleRepository = appRoleRepository;
+        this.securityHelper    = securityHelper;
+    }
 
     @GetMapping
     public ResponseEntity<List<AppRole>> getAll() {
         try {
             UUID orgId = securityHelper.getCurrentOrgId();
-
-            // Super Admin sees all roles across all orgs
             List<AppRole> roles = PlatformConstants.isPlatformOrg(orgId)
                     ? appRoleRepository.findAll()
                     : appRoleRepository.findByOrgId(orgId);
-
             return ResponseEntity.ok(roles);
         } catch (Exception e) {
             System.err.println("❌ Error fetching roles: " + e.getMessage());
@@ -48,7 +47,6 @@ public class AppRoleController {
     public ResponseEntity<List<AppRole>> getByOrg(@PathVariable UUID orgId) {
         try {
             UUID currentOrgId = securityHelper.getCurrentOrgId();
-            // Only platform admin can fetch roles of other orgs
             if (!PlatformConstants.isPlatformOrg(currentOrgId) && !currentOrgId.equals(orgId)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
@@ -65,13 +63,11 @@ public class AppRoleController {
             UUID orgId = securityHelper.getCurrentOrgId();
             UUID userId = securityHelper.getCurrentUserId();
 
-            // Check if role name already exists in this org
             if (appRoleRepository.existsByRoleNameAndOrgId(role.getRoleName(), orgId)) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Role '" + role.getRoleName() + "' already exists"));
             }
 
-            // Set org and audit fields
             role.setOrgId(orgId);
             role.setCreatedBy(userId);
             role.setUpdatedBy(userId);
@@ -94,7 +90,6 @@ public class AppRoleController {
                 existing.setRoleName(role.getRoleName());
                 existing.setDescription(role.getDescription());
                 existing.setUpdatedBy(userId);
-
                 AppRole updated = appRoleRepository.save(existing);
                 return ResponseEntity.ok(updated);
             }).orElse(ResponseEntity.notFound().build());

@@ -3,7 +3,6 @@ package com.example.demo.customer.controller;
 import com.example.demo.config.SecurityHelper;
 import com.example.demo.customer.entity.QuoteRefConfig;
 import com.example.demo.customer.repository.QuoteRefConfigRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,8 +16,14 @@ import java.util.UUID;
 })
 public class QuoteRefConfigController {
 
-    @Autowired private QuoteRefConfigRepository configRepository;
-    @Autowired private SecurityHelper securityHelper;
+    private final QuoteRefConfigRepository configRepository;
+    private final SecurityHelper securityHelper;
+
+    public QuoteRefConfigController(QuoteRefConfigRepository configRepository,
+                                    SecurityHelper securityHelper) {
+        this.configRepository = configRepository;
+        this.securityHelper   = securityHelper;
+    }
 
     @GetMapping
     public ResponseEntity<QuoteRefConfig> getConfig() {

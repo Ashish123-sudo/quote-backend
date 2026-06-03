@@ -5,11 +5,10 @@ import com.example.demo.customer.entity.TcLibrary;
 import com.example.demo.customer.entity.TcType;
 import com.example.demo.customer.repository.TcLibraryRepository;
 import com.example.demo.customer.repository.TcTypeRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,14 +20,17 @@ import java.util.UUID;
 })
 public class TcLibraryController {
 
-    @Autowired
-    private TcLibraryRepository tcLibraryRepository;
+    private final TcLibraryRepository tcLibraryRepository;
+    private final TcTypeRepository tcTypeRepository;
+    private final SecurityHelper securityHelper;
 
-    @Autowired
-    private TcTypeRepository tcTypeRepository;
-
-    @Autowired
-    private SecurityHelper securityHelper;
+    public TcLibraryController(TcLibraryRepository tcLibraryRepository,
+                               TcTypeRepository tcTypeRepository,
+                               SecurityHelper securityHelper) {
+        this.tcLibraryRepository = tcLibraryRepository;
+        this.tcTypeRepository    = tcTypeRepository;
+        this.securityHelper      = securityHelper;
+    }
 
     // ── TYPES ──────────────────────────────────────────
 
@@ -87,8 +89,7 @@ public class TcLibraryController {
     public ResponseEntity<List<TcLibrary>> getAllTerms() {
         try {
             UUID orgId = securityHelper.getCurrentOrgId();
-            // Return sorted by sortOrder
-            List<TcLibrary> terms = tcLibraryRepository.findByOrgIdOrderBySortOrderAsc(orgId);
+            List<TcLibrary> terms = tcLibraryRepository.findByOrgIdWithTypeOrderBySortOrderAsc(orgId);
             return ResponseEntity.ok(terms);
         } catch (Exception e) {
             System.err.println("❌ Error fetching terms: " + e.getMessage());
@@ -106,9 +107,7 @@ public class TcLibraryController {
             term.setCreatedBy(userId);
             term.setUpdatedBy(userId);
 
-            // Handle TcType - create or link
             if (term.getTcType() == null || term.getTcType().getTypeId() == null) {
-                // Create or get "General" type
                 TcType generalType = tcTypeRepository.findByTypeNameAndOrgId("General", orgId)
                         .orElseGet(() -> {
                             TcType t = new TcType();
@@ -125,7 +124,6 @@ public class TcLibraryController {
                 term.setTcType(type);
             }
 
-            // If no sortOrder provided, put it at the end
             if (term.getSortOrder() == null) {
                 int maxOrder = (int) tcLibraryRepository.countByOrgId(orgId);
                 term.setSortOrder(maxOrder + 1);
@@ -197,12 +195,11 @@ public class TcLibraryController {
 
     // ── REORDER ────────────────────────────────────────
 
-    // DTO for reorder request
     static class ReorderItem {
-        public String termId;  // Changed to String to accept UUID
+        public String termId;
         public Integer sortOrder;
     }
-
+    @Transactional
     @PutMapping("/terms/reorder")
     public ResponseEntity<Void> reorderTerms(@RequestBody List<ReorderItem> items) {
         try {

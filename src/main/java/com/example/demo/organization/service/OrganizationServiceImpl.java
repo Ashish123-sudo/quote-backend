@@ -5,7 +5,7 @@ import com.example.demo.customer.config.PlatformConstants;
 import com.example.demo.organization.entity.Organization;
 import com.example.demo.organization.repository.OrganizationRepository;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,14 +37,14 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     @Override
     public Optional<Organization> getOrganizationById(UUID orgId) {
-        return organizationRepository.findById(orgId);
+        return organizationRepository.findByOrgId(orgId); // ✅ loads contacts
     }
 
     @Override
     public Optional<Organization> getOrganizationByCode(String orgCode) {
         return organizationRepository.findByOrgCode(orgCode);
     }
-
+    @Transactional
     @Override
     public Organization createOrganization(Organization organization) {
 
@@ -75,7 +75,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         return organizationRepository.save(organization);
     }
-
+    @Transactional
     @Override
     public Organization updateOrganization(UUID orgId, Organization updated) {
         Organization existing = organizationRepository.findById(orgId)
@@ -119,7 +119,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         return organizationRepository.save(existing);
     }
-
+    @Transactional
     @Override
     public void deleteOrganization(UUID orgId) {
         if (!organizationRepository.existsById(orgId)) {
@@ -127,7 +127,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
         organizationRepository.deleteById(orgId);
     }
-
+    @Transactional
     @Override
     public Organization deactivateOrganization(UUID orgId) {
         Organization org = organizationRepository.findById(orgId)

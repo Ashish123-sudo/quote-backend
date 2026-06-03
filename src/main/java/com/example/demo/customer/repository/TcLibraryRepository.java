@@ -3,10 +3,11 @@ package com.example.demo.customer.repository;
 import com.example.demo.customer.entity.TcLibrary;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.util.UUID;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 @Repository
 public interface TcLibraryRepository extends JpaRepository<TcLibrary, UUID> {
@@ -31,4 +32,7 @@ public interface TcLibraryRepository extends JpaRepository<TcLibrary, UUID> {
     // Count terms
     long countByOrgId(UUID orgId);
     long countByTcType_TypeIdAndOrgId(UUID typeId, UUID orgId);
+
+    @Query("SELECT t FROM TcLibrary t LEFT JOIN FETCH t.tcType WHERE t.orgId = :orgId ORDER BY t.sortOrder ASC")
+    List<TcLibrary> findByOrgIdWithTypeOrderBySortOrderAsc(@Param("orgId") UUID orgId);
 }

@@ -5,7 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,10 +36,16 @@ public interface TcTemplateRepository extends JpaRepository<TcTemplate, UUID> {
 
     // Custom query to find templates with specific term
     @Query("SELECT DISTINCT t FROM TcTemplate t " +
-            "JOIN t.terms term " +
-            "WHERE t.orgId = :orgId AND term.termId = :termId")
+            "JOIN t.templateItems item " +
+            "WHERE t.orgId = :orgId AND item.term.termId = :termId")
     List<TcTemplate> findTemplatesContainingTerm(
             @Param("orgId") UUID orgId,
             @Param("termId") UUID termId
     );
+
+    @Query("SELECT t FROM TcTemplate t LEFT JOIN FETCH t.templateItems ti LEFT JOIN FETCH ti.term term LEFT JOIN FETCH term.tcType WHERE t.templateId = :templateId AND t.orgId = :orgId")
+    Optional<TcTemplate> findByTemplateIdAndOrgIdWithItems(@Param("templateId") UUID templateId, @Param("orgId") UUID orgId);
+
+    @Query("SELECT t FROM TcTemplate t LEFT JOIN FETCH t.templateItems ti LEFT JOIN FETCH ti.term term LEFT JOIN FETCH term.tcType WHERE t.orgId = :orgId")
+    List<TcTemplate> findByOrgIdWithItems(@Param("orgId") UUID orgId);
 }

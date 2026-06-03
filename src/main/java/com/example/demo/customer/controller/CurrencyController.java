@@ -3,7 +3,6 @@ package com.example.demo.customer.controller;
 import com.example.demo.config.SecurityHelper;
 import com.example.demo.customer.entity.Currency;
 import com.example.demo.customer.repository.CurrencyRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,11 +19,14 @@ import java.util.UUID;
 })
 public class CurrencyController {
 
-    @Autowired
-    private CurrencyRepository currencyRepository;
+    private final CurrencyRepository currencyRepository;
+    private final SecurityHelper securityHelper;
 
-    @Autowired
-    private SecurityHelper securityHelper;
+    public CurrencyController(CurrencyRepository currencyRepository,
+                              SecurityHelper securityHelper) {
+        this.currencyRepository = currencyRepository;
+        this.securityHelper     = securityHelper;
+    }
 
     @GetMapping
     public ResponseEntity<List<Currency>> getAll() {
@@ -46,19 +48,16 @@ public class CurrencyController {
 
             String currencyCode = currency.getCurrencyCode().toUpperCase();
 
-            // Check if currency code already exists in this org
             if (currencyRepository.existsByCurrencyCodeAndOrgId(currencyCode, orgId)) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Currency code '" + currencyCode + "' already exists"));
             }
 
-            // Set org and audit fields
             currency.setOrgId(orgId);
             currency.setCurrencyCode(currencyCode);
             currency.setCreatedBy(userId);
             currency.setUpdatedBy(userId);
 
-            // If this is the first currency for the org, make it default
             if (currencyRepository.countByOrgId(orgId) == 0) {
                 currency.setIsDefault(true);
             }
@@ -105,7 +104,6 @@ public class CurrencyController {
             Currency existing = currencyRepository.findByCurrencyIdAndOrgId(id, orgId)
                     .orElseThrow(() -> new RuntimeException("Currency not found"));
 
-            // Prevent deleting default currency
             if (Boolean.TRUE.equals(existing.getIsDefault())) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Cannot delete the default currency"));
@@ -128,14 +126,12 @@ public class CurrencyController {
             UUID orgId = securityHelper.getCurrentOrgId();
             UUID userId = securityHelper.getCurrentUserId();
 
-            // Clear existing default for this org
             currencyRepository.findByOrgIdAndIsDefaultTrue(orgId).ifPresent(c -> {
                 c.setIsDefault(false);
                 c.setUpdatedBy(userId);
                 currencyRepository.save(c);
             });
 
-            // Set new default
             Currency currency = currencyRepository.findByCurrencyIdAndOrgId(id, orgId)
                     .orElseThrow(() -> new RuntimeException("Currency not found"));
 

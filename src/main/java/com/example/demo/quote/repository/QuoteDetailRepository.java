@@ -49,4 +49,7 @@ public interface QuoteDetailRepository extends JpaRepository<QuoteDetail, UUID> 
             @Param("quoteRef") String quoteRef,
             @Param("orgId") UUID orgId
     );
+
+    @Query("SELECT qd.quoteHeader.quoteId FROM QuoteDetail qd WHERE qd.slNo = :slNo")
+    UUID findQuoteIdBySlNo(@Param("slNo") UUID slNo);
 }

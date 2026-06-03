@@ -3,7 +3,6 @@ package com.example.demo.customer.controller;
 import com.example.demo.config.SecurityHelper;
 import com.example.demo.customer.entity.Customer;
 import com.example.demo.customer.service.CustomerService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,11 +22,14 @@ import java.util.UUID;
 })
 public class CustomerController {
 
-    @Autowired
-    private CustomerService customerService;
+    private final CustomerService customerService;
+    private final SecurityHelper securityHelper;
 
-    @Autowired
-    private SecurityHelper securityHelper;
+    public CustomerController(CustomerService customerService,
+                              SecurityHelper securityHelper) {
+        this.customerService = customerService;
+        this.securityHelper  = securityHelper;
+    }
 
     @GetMapping
     public ResponseEntity<List<Customer>> getAllCustomers() {
@@ -97,31 +99,25 @@ public class CustomerController {
 
         } catch (DataIntegrityViolationException e) {
             System.err.println("❌ DELETE /api/customers/" + id + " - Foreign key constraint");
-
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("error", "FOREIGN_KEY_CONSTRAINT");
             errorResponse.put("message", "Cannot delete customer - they have existing quotes. Please delete the quotes first.");
             errorResponse.put("customerId", id.toString());
-
             return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
 
         } catch (RuntimeException e) {
             System.err.println("❌ DELETE /api/customers/" + id + " - Customer not found");
-
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("error", "NOT_FOUND");
             errorResponse.put("message", "Customer not found with id: " + id);
-
             return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
 
         } catch (Exception e) {
             System.err.println("❌ DELETE /api/customers/" + id + " - Error: " + e.getMessage());
             e.printStackTrace();
-
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("error", "INTERNAL_ERROR");
             errorResponse.put("message", "An unexpected error occurred");
-
             return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

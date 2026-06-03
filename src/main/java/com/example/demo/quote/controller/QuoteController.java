@@ -1,5 +1,5 @@
 package com.example.demo.quote.controller;
-
+import org.springframework.transaction.annotation.Transactional;
 import com.example.demo.config.BrevoEmailService;
 import com.example.demo.config.SecurityHelper;
 import com.example.demo.customer.entity.AppUser;
@@ -10,7 +10,6 @@ import com.example.demo.quote.entity.QuoteHeader;
 import com.example.demo.quote.entity.QuoteTermsCondition;
 import com.example.demo.quote.repository.QuoteHeaderRepository;
 import com.example.demo.quote.service.QuoteService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,14 +27,27 @@ import java.util.UUID;
 })
 public class QuoteController {
 
-    @Autowired private QuoteService quoteService;
-    @Autowired private QuoteHeaderRepository quoteHeaderRepository;
-    @Autowired private BrevoEmailService brevoEmailService;
-    @Autowired private AppUserRepository appUserRepository;
-    @Autowired private AppRoleRepository appRoleRepository;
-    @Autowired private SecurityHelper securityHelper;
+    private final QuoteService quoteService;
+    private final QuoteHeaderRepository quoteHeaderRepository;
+    private final BrevoEmailService brevoEmailService;
+    private final AppUserRepository appUserRepository;
+    private final AppRoleRepository appRoleRepository;
+    private final SecurityHelper securityHelper;
 
-    // GET all quotes
+    public QuoteController(QuoteService quoteService,
+                           QuoteHeaderRepository quoteHeaderRepository,
+                           BrevoEmailService brevoEmailService,
+                           AppUserRepository appUserRepository,
+                           AppRoleRepository appRoleRepository,
+                           SecurityHelper securityHelper) {
+        this.quoteService           = quoteService;
+        this.quoteHeaderRepository  = quoteHeaderRepository;
+        this.brevoEmailService      = brevoEmailService;
+        this.appUserRepository      = appUserRepository;
+        this.appRoleRepository      = appRoleRepository;
+        this.securityHelper         = securityHelper;
+    }
+
     @GetMapping
     public ResponseEntity<List<QuoteHeader>> getAllQuotes() {
         try {
@@ -48,7 +60,6 @@ public class QuoteController {
         }
     }
 
-    // GET quote by ID
     @GetMapping("/{id}")
     public ResponseEntity<QuoteHeader> getQuoteById(@PathVariable UUID id) {
         try {
@@ -62,7 +73,6 @@ public class QuoteController {
         }
     }
 
-    // GET quote by reference
     @GetMapping("/ref/{quoteRef}")
     public ResponseEntity<QuoteHeader> getQuoteByRef(@PathVariable String quoteRef) {
         try {
@@ -76,7 +86,6 @@ public class QuoteController {
         }
     }
 
-    // GET quotes by customer ID
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<List<QuoteHeader>> getQuotesByCustomerId(@PathVariable UUID customerId) {
         try {
@@ -89,12 +98,11 @@ public class QuoteController {
         }
     }
 
-    // GET next quote reference
     @GetMapping("/next-ref")
     public ResponseEntity<String> getNextQuoteRef() {
         try {
             UUID orgId = securityHelper.getCurrentOrgId();
-            String nextRef = quoteService.peekNextQuoteRef(orgId);  // peek only, no increment
+            String nextRef = quoteService.peekNextQuoteRef(orgId);
             return ResponseEntity.ok(nextRef);
         } catch (Exception e) {
             System.err.println("❌ Error generating quote ref: " + e.getMessage());
@@ -102,7 +110,6 @@ public class QuoteController {
         }
     }
 
-    // POST create new quote
     @PostMapping
     public ResponseEntity<QuoteHeader> createQuote(@RequestBody QuoteHeader quoteHeader) {
         try {
@@ -117,7 +124,6 @@ public class QuoteController {
         }
     }
 
-    // PUT update quote
     @PutMapping("/{id}")
     public ResponseEntity<QuoteHeader> updateQuote(@PathVariable UUID id,
                                                    @RequestBody QuoteHeader quoteHeader) {
@@ -136,7 +142,6 @@ public class QuoteController {
         }
     }
 
-    // UPDATE quote terms
     @PutMapping("/{id}/terms")
     public ResponseEntity<Void> updateQuoteTerms(@PathVariable UUID id,
                                                  @RequestBody List<QuoteTermsCondition> terms) {
@@ -151,8 +156,7 @@ public class QuoteController {
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
-    // SUBMIT for approval
+    @Transactional
     @PutMapping("/{id}/submit")
     public ResponseEntity<?> submitForApproval(@PathVariable UUID id,
                                                @RequestBody Map<String, String> payload) {
@@ -164,11 +168,10 @@ public class QuoteController {
                     .orElseThrow(() -> new RuntimeException("Quote not found"));
 
             quote.setApprovalStatus("PENDING");
-            quote.setSubmittedBy(payload.get("submittedBy"));
             quote.setUpdatedBy(userId);
             quoteHeaderRepository.save(quote);
 
-            // Notify all Quote Approvers in this org
+            // Notify approvers
             appRoleRepository.findByRoleNameAndOrgId("Quote Approver", orgId).ifPresent(role -> {
                 List<AppUser> approvers = appUserRepository.findByOrgIdAndAppRole(orgId, role);
                 for (AppUser approver : approvers) {
@@ -190,8 +193,7 @@ public class QuoteController {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
-
-    // APPROVE quote
+    @Transactional
     @PutMapping("/{id}/approve")
     public ResponseEntity<?> approveQuote(@PathVariable UUID id,
                                           @RequestBody Map<String, String> payload) {
@@ -207,7 +209,6 @@ public class QuoteController {
             quote.setUpdatedBy(userId);
             quoteHeaderRepository.save(quote);
 
-            // Notify quote creator
             if (quote.getCreatedBy() != null) {
                 appUserRepository.findById(quote.getCreatedBy()).ifPresent(creator -> {
                     if (creator.getEmail() != null && !creator.getEmail().isBlank()) {
@@ -227,8 +228,7 @@ public class QuoteController {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
-
-    // REJECT quote
+    @Transactional
     @PutMapping("/{id}/reject")
     public ResponseEntity<?> rejectQuote(@PathVariable UUID id,
                                          @RequestBody Map<String, String> payload) {
@@ -245,7 +245,6 @@ public class QuoteController {
             quote.setUpdatedBy(userId);
             quoteHeaderRepository.save(quote);
 
-            // Notify quote creator
             if (quote.getCreatedBy() != null) {
                 appUserRepository.findById(quote.getCreatedBy()).ifPresent(creator -> {
                     if (creator.getEmail() != null && !creator.getEmail().isBlank()) {
@@ -253,7 +252,7 @@ public class QuoteController {
                         String html = "<p>Hi " + creator.getFullName() + ",</p>"
                                 + "<p>Your quote <strong>" + quote.getQuoteRef() + "</strong> has been <strong style='color:red'>rejected</strong>.</p>"
                                 + "<p>Reason: " + payload.get("rejectionReason") + "</p>"
-                                + "<p>Customer: " + (quote.getCustomer() != null ? quote.getCustomer().getName(): "—") + "<br>"
+                                + "<p>Customer: " + (quote.getCustomer() != null ? quote.getCustomer().getName() : "—") + "<br>"
                                 + "Total Value: " + quote.getCurrency() + " " + quote.getTotalValue() + "</p>";
                         brevoEmailService.sendEmail(creator.getEmail(), creator.getFullName(), subject, html);
                     }
@@ -267,7 +266,6 @@ public class QuoteController {
         }
     }
 
-    // DELETE quote
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteQuote(@PathVariable UUID id) {
         try {
@@ -283,7 +281,6 @@ public class QuoteController {
         }
     }
 
-    // POST add single quote detail
     @PostMapping("/detail")
     public ResponseEntity<QuoteDetail> addQuoteDetail(@RequestBody QuoteDetail quoteDetail) {
         try {
@@ -302,7 +299,6 @@ public class QuoteController {
         }
     }
 
-    // PUT update single quote detail
     @PutMapping("/detail/{slNo}")
     public ResponseEntity<QuoteDetail> updateQuoteDetail(@PathVariable UUID slNo,
                                                          @RequestBody QuoteDetail quoteDetail) {
@@ -321,7 +317,6 @@ public class QuoteController {
         }
     }
 
-    // DELETE single quote detail
     @DeleteMapping("/detail/{slNo}")
     public ResponseEntity<Void> deleteQuoteDetail(@PathVariable UUID slNo) {
         try {

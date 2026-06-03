@@ -15,8 +15,11 @@ import java.util.UUID;
 @Transactional
 public class CustomerServiceImpl implements CustomerService {
 
-    @Autowired
-    private CustomerRepository customerRepository;
+    private final CustomerRepository customerRepository;
+
+    public CustomerServiceImpl(CustomerRepository customerRepository) {
+        this.customerRepository = customerRepository;
+    }
 
     @Override
     public List<Customer> getAllCustomers(UUID orgId) {
@@ -73,25 +76,16 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public void deleteCustomer(UUID customerId, UUID orgId) {
-        System.out.println("🗑️ CustomerService: Attempting to delete customer ID: " + customerId);
-
-        // Verify customer exists and belongs to org
-        if (!customerRepository.existsByCustomerIdAndOrgId(customerId, orgId)) {
-            System.err.println("❌ CustomerService: Customer not found with ID: " + customerId);
-            throw new RuntimeException("Customer not found with id: " + customerId);
-        }
-
+        Customer customer = customerRepository.findByCustomerIdAndOrgId(customerId, orgId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Customer not found with id: " + customerId));
         try {
-            Customer customer = customerRepository.findByCustomerIdAndOrgId(customerId, orgId)
-                    .orElseThrow(() -> new RuntimeException("Customer not found"));
             customerRepository.delete(customer);
             customerRepository.flush();
-            System.out.println("✅ CustomerService: Successfully deleted customer ID: " + customerId);
         } catch (DataIntegrityViolationException e) {
-            System.err.println("❌ CustomerService: Cannot delete customer ID " + customerId + " - has related quotes");
             throw new DataIntegrityViolationException(
-                    "Cannot delete customer - they have existing quotes. Please delete the quotes first."
-            );
+                    "Cannot delete customer - they have existing quotes. " +
+                            "Please delete the quotes first.");
         }
     }
 

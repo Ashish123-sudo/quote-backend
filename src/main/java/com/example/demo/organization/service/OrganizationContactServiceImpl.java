@@ -6,7 +6,7 @@ import com.example.demo.organization.entity.OrganizationContact;
 import com.example.demo.organization.repository.OrganizationContactRepository;
 import com.example.demo.organization.repository.OrganizationRepository;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,7 +45,7 @@ public class OrganizationContactServiceImpl implements OrganizationContactServic
     public Optional<OrganizationContact> getPrimaryContact(UUID orgId) {
         return contactRepository.findByOrganization_OrgIdAndIsPrimaryTrue(orgId);
     }
-
+    @Transactional
     @Override
     public OrganizationContact createContact(UUID orgId, OrganizationContact contact) {
         Organization org = organizationRepository.findById(orgId)
@@ -74,7 +74,7 @@ public class OrganizationContactServiceImpl implements OrganizationContactServic
 
         return contactRepository.save(contact);
     }
-
+    @Transactional
     @Override
     public OrganizationContact updateContact(UUID contactId, OrganizationContact updated) {
         OrganizationContact existing = contactRepository.findById(contactId)
@@ -110,7 +110,7 @@ public class OrganizationContactServiceImpl implements OrganizationContactServic
 
         return contactRepository.save(existing);
     }
-
+    @Transactional
     @Override
     public void deleteContact(UUID contactId) {
         if (!contactRepository.existsById(contactId)) {
@@ -118,7 +118,7 @@ public class OrganizationContactServiceImpl implements OrganizationContactServic
         }
         contactRepository.deleteById(contactId);
     }
-
+    @Transactional
     @Override
     public OrganizationContact deactivateContact(UUID contactId) {
         OrganizationContact contact = contactRepository.findById(contactId)
